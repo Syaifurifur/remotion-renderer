@@ -1,0 +1,641 @@
+﻿{
+  "name": "AI Motion Graphic Factory (Gemini + TTS + Remotion + Telegram -> YT Shorts & IG Reels)",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "callback_query"
+        ],
+        "additionalFields": {}
+      },
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1120,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst allowedChatId = ''; // OPSIONAL: Isi Chat ID Telegram Anda (string) untuk mengunci akses bot\n\nif (input.callback_query) {\n  const cb = input.callback_query;\n  const chatId = String(cb.message.chat.id);\n  if (allowedChatId && chatId !== allowedChatId) return [];\n  const [action, jobId] = String(cb.data || '').split('|');\n  return [{\n    json: {\n      mode: 'callback',\n      action,\n      jobId,\n      chatId,\n      callbackQueryId: cb.id,\n      messageId: cb.message.message_id\n    }\n  }];\n}\n\nconst msg = input.message;\nif (!msg || !msg.text) return [];\nconst chatId = String(msg.chat.id);\nif (allowedChatId && chatId !== allowedChatId) return [];\n\nconst text = msg.text.trim();\nif (!text.startsWith('/video')) {\n  return [{\n    json: {\n      mode: 'help',\n      chatId\n    }\n  }];\n}\n\nconst topic = text.replace(/^\\/video\\s*/i, '').trim();\nif (!topic) {\n  return [{\n    json: {\n      mode: 'help',\n      chatId\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    mode: 'generate',\n    chatId,\n    topic,\n    jobId: `job_${Date.now()}`\n  }\n}];"
+      },
+      "id": "route-command",
+      "name": "Route Telegram Command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-generate",
+              "leftValue": "={{ $json.mode }}",
+              "rightValue": "generate",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-generate",
+      "name": "Is /video Command?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-approve",
+              "leftValue": "={{ $json.mode === 'callback' && $json.action === 'approve' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-approve",
+      "name": "Is Approve Callback?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "Gunakan perintah:\n/video <topik video>\n\nContoh:\n/video 3 Tips Lolos UTBK SNBT 2026 dengan Skor IRT Tinggi",
+        "additionalFields": {}
+      },
+      "id": "tg-help",
+      "name": "Telegram Help",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -380,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "=â³ Sedang membuat skrip, voiceover Gemini TTS, dan render video motion graphic untuk topik:\n\"{{ $json.topic }}\"",
+        "additionalFields": {}
+      },
+      "id": "tg-notify-start",
+      "name": "Telegram Notify Start",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -380,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=YOUR_GEMINI_API_KEY",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"Kamu adalah Motion Graphic Scriptwriter profesional untuk video vertikal 9:16 (YouTube Shorts & Instagram Reels) berdurasi 25-35 detik dalam bahasa Indonesia.\\n\\nTopik: {{ $('Route Telegram Command').item.json.topic }}\\n\\nBuat output JSON VALID (tanpa markdown) dengan struktur persis berikut:\\n{\\n  \\\"title\\\": \\\"Judul singkat menarik max 70 karakter\\\",\\n  \\\"caption\\\": \\\"Caption IG Reels & deskripsi YouTube Shorts lengkap dengan hashtag relevan termasuk #Shorts\\\",\\n  \\\"narration\\\": \\\"Teks narasi utuh yang enak dibacakan voiceover dalam 25-35 detik, tanpa simbol aneh\\\",\\n  \\\"themeColor\\\": \\\"#0b63ce\\\",\\n  \\\"scenes\\\": [\\n    {\\n      \\\"headline\\\": \\\"Teks besar 3-5 kata\\\",\\n      \\\"subtext\\\": \\\"Penjelasan singkat max 12 kata\\\",\\n      \\\"badge\\\": \\\"HOOK / POIN 1 / CTA\\\",\\n      \\\"durationSec\\\": 5\\n    }\\n  ]\\n}\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\"\n  }\n}",
+        "options": {}
+      },
+      "id": "gemini-script",
+      "name": "Gemini Generate Script & Scenes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -120,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.candidates?.[0]?.content?.parts?.[0]?.text || '{}';\nconst parsed = JSON.parse(raw);\nconst route = $('Route Telegram Command').item.json;\n\nreturn [{\n  json: {\n    jobId: route.jobId,\n    chatId: route.chatId,\n    topic: route.topic,\n    title: parsed.title || route.topic.slice(0, 70),\n    caption: parsed.caption || `${route.topic} #Shorts`,\n    narration: parsed.narration || route.topic,\n    themeColor: parsed.themeColor || '#0b63ce',\n    scenes: Array.isArray(parsed.scenes) ? parsed.scenes : []\n  }\n}];"
+      },
+      "id": "parse-script",
+      "name": "Parse Gemini JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=YOUR_GEMINI_API_KEY",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"Bacakan dengan intonasi energik, jelas, dan natural untuk video pendek edukasi: {{ $json.narration }}\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"responseModalities\": [\"AUDIO\"],\n    \"speechConfig\": {\n      \"voiceConfig\": {\n        \"prebuiltVoiceConfig\": {\n          \"voiceName\": \"Kore\"\n        }\n      }\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "gemini-tts",
+      "name": "Gemini TTS Voiceover",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        360,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://digitalspacehubautomation-remotionrenderer-8bbpky:3000/render",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"jobId\": \"{{ $('Parse Gemini JSON').item.json.jobId }}\",\n  \"title\": \"{{ $('Parse Gemini JSON').item.json.title }}\",\n  \"caption\": \"{{ $('Parse Gemini JSON').item.json.caption }}\",\n  \"themeColor\": \"{{ $('Parse Gemini JSON').item.json.themeColor }}\",\n  \"scenes\": {{ JSON.stringify($('Parse Gemini JSON').item.json.scenes) }},\n  \"audioBase64\": \"{{ $json.candidates[0].content.parts[0].inlineData.data }}\",\n  \"audioMimeType\": \"{{ $json.candidates[0].content.parts[0].inlineData.mimeType || 'audio/L16;rate=24000' }}\"\n}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "remotion-render",
+      "name": "Remotion Render Video (9:16)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        620,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.videoUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "download-rendered-video",
+      "name": "Download Rendered MP4",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        860,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "sendVideo",
+        "chatId": "={{ $('Parse Gemini JSON').item.json.chatId }}",
+        "binaryData": true,
+        "additionalFields": {
+          "caption": "=ðŸŽ¬ *Preview Video Siap!*\n*Judul:* {{ $('Parse Gemini JSON').item.json.title }}\n\nKlik tombol di bawah untuk langsung upload ke YouTube Shorts & Instagram Reels:",
+          "parse_mode": "Markdown"
+        },
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "âœ… Upload YT Shorts & IG Reels",
+                    "additionalFields": {
+                      "callback_data": "=approve|{{ $('Parse Gemini JSON').item.json.jobId }}"
+                    }
+                  },
+                  {
+                    "text": "âŒ Batal",
+                    "additionalFields": {
+                      "callback_data": "=reject|{{ $('Parse Gemini JSON').item.json.jobId }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "id": "tg-send-preview",
+      "name": "Telegram Send Preview + Buttons",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://digitalspacehubautomation-remotionrenderer-8bbpky:3000/jobs/{{ $json.jobId }}",
+        "options": {}
+      },
+      "id": "fetch-job-meta",
+      "name": "Fetch Job Metadata & Video URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -380,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.videoUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "download-for-yt",
+      "name": "Download MP4 for YouTube",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -120,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title": "={{ $('Fetch Job Metadata & Video URL').item.json.title }} #Shorts",
+        "regionCode": "ID",
+        "categoryId": "27",
+        "options": {
+          "description": "={{ $('Fetch Job Metadata & Video URL').item.json.caption }}",
+          "privacyStatus": "public"
+        }
+      },
+      "id": "youtube-upload",
+      "name": "Upload to YouTube Shorts",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        140,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/YOUR_IG_USER_ID/media",
+        "sendQueryParameters": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "media_type",
+              "value": "REELS"
+            },
+            {
+              "name": "video_url",
+              "value": "={{ $('Fetch Job Metadata & Video URL').item.json.videoUrl }}"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $('Fetch Job Metadata & Video URL').item.json.caption }}"
+            },
+            {
+              "name": "access_token",
+              "value": "YOUR_IG_ACCESS_TOKEN"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ig-create-container",
+      "name": "IG Reels Create Container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -120,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 20,
+        "unit": "seconds"
+      },
+      "id": "wait-ig-process",
+      "name": "Wait IG Video Processing",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        140,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/YOUR_IG_USER_ID/media_publish",
+        "sendQueryParameters": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "creation_id",
+              "value": "={{ $('IG Reels Create Container').item.json.id }}"
+            },
+            {
+              "name": "access_token",
+              "value": "YOUR_IG_ACCESS_TOKEN"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ig-publish",
+      "name": "IG Reels Publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        380,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Route Telegram Command').item.json.chatId }}",
+        "text": "=ðŸš€ *Video berhasil dipublish!*\nâ€¢ YouTube Shorts: https://youtube.com/shorts/{{ $('Upload to YouTube Shorts').item.json.id }}\nâ€¢ Instagram Reels ID: {{ $json.id || 'Published' }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "tg-notify-done",
+      "name": "Telegram Notify Published",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        640,
+        460
+      ]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Route Telegram Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Telegram Command": {
+      "main": [
+        [
+          {
+            "node": "Is /video Command?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is Approve Callback?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is /video Command?": {
+      "main": [
+        [
+          {
+            "node": "Telegram Notify Start",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram Help",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Notify Start": {
+      "main": [
+        [
+          {
+            "node": "Gemini Generate Script & Scenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Generate Script & Scenes": {
+      "main": [
+        [
+          {
+            "node": "Parse Gemini JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Gemini JSON": {
+      "main": [
+        [
+          {
+            "node": "Gemini TTS Voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini TTS Voiceover": {
+      "main": [
+        [
+          {
+            "node": "Remotion Render Video (9:16)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remotion Render Video (9:16)": {
+      "main": [
+        [
+          {
+            "node": "Download Rendered MP4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Rendered MP4": {
+      "main": [
+        [
+          {
+            "node": "Telegram Send Preview + Buttons",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Approve Callback?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Job Metadata & Video URL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Fetch Job Metadata & Video URL": {
+      "main": [
+        [
+          {
+            "node": "Download MP4 for YouTube",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "IG Reels Create Container",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download MP4 for YouTube": {
+      "main": [
+        [
+          {
+            "node": "Upload to YouTube Shorts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Reels Create Container": {
+      "main": [
+        [
+          {
+            "node": "Wait IG Video Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait IG Video Processing": {
+      "main": [
+        [
+          {
+            "node": "IG Reels Publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to YouTube Shorts": {
+      "main": [
+        [
+          {
+            "node": "Telegram Notify Published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Reels Publish": {
+      "main": [
+        [
+          {
+            "node": "Telegram Notify Published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
+
