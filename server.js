@@ -110,14 +110,23 @@ app.post('/render', async (req, res) => {
     const { audioFile, durationSec } = writeAndConvertAudio(jobId, audioBase64, audioMimeType);
     const productImageUrl = writeImageFile(jobId, 'product', productImageBase64, productImageMimeType);
     const bgImageUrl = writeImageFile(jobId, 'bg', bgImageBase64, bgImageMimeType);
+    const preparedScenes = scenes.map((scene, idx) => {
+      const next = { ...scene };
+      if (next.imageBase64) {
+        next.imageUrl = writeImageFile(jobId, `scene_${idx}`, next.imageBase64, next.imageMimeType || 'image/png');
+        delete next.imageBase64;
+        delete next.imageMimeType;
+      }
+      return next;
+    });
     const fps = 24;
     const durationInFrames = Math.max(72, durationSec * fps);
     const audioUrl = audioFile ? `http://127.0.0.1:${PORT}/outputs/${jobId}.mp3` : '';
     const browserExecutable = fs.existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : undefined;
 
-    console.log(`[${jobId}] Starting render (${durationSec}s, ${durationInFrames} frames, browser=${browserExecutable || 'default'})`);
+    console.log(`[${jobId}] Starting render (${durationSec}s, ${durationInFrames} frames, scenes=${preparedScenes.length}, browser=${browserExecutable || 'default'})`);
     const serveUrl = await getBundleLocation();
-    const inputProps = { title, themeColor, audioUrl, productImageUrl, bgImageUrl, fps, durationInFrames, scenes };
+    const inputProps = { title, themeColor, audioUrl, productImageUrl, bgImageUrl, fps, durationInFrames, scenes: preparedScenes };
 
     const composition = await selectComposition({
       serveUrl,

@@ -16,6 +16,8 @@ export interface SceneItem {
   badge?: string;
   durationSec: number;
   showProduct?: boolean;
+  imageUrl?: string;
+  motion?: 'zoomIn' | 'panRight' | 'zoomOut' | 'panLeft';
 }
 
 export interface MotionGraphicProps {
@@ -29,62 +31,25 @@ export interface MotionGraphicProps {
   scenes: SceneItem[];
 }
 
-const LightStreaksAndMist: React.FC<{ themeColor: string; frame: number }> = ({
+const MOTIONS: Array<'zoomIn' | 'panRight' | 'zoomOut' | 'panLeft'> = [
+  'zoomIn',
+  'panRight',
+  'zoomOut',
+  'panLeft',
+];
+
+const LightStreaksOverlay: React.FC<{ themeColor: string; frame: number }> = ({
   themeColor,
   frame,
 }) => {
-  const mist1X = Math.sin(frame / 42) * 90;
-  const mist1Y = Math.cos(frame / 55) * 45;
-  const mist2X = Math.cos(frame / 36) * 110;
-  const mist2Y = Math.sin(frame / 48) * 50;
-  const dashOffset1 = -(frame * 10) % 1600;
-  const dashOffset2 = (frame * 7) % 1600;
-  const spotlightScale = 1 + Math.sin(frame / 30) * 0.08;
+  const dashOffset1 = -(frame * 11) % 1600;
+  const dashOffset2 = (frame * 8) % 1600;
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none', overflow: 'hidden' }}>
-      {/* Studio radial spotlight behind hero product */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '22%',
-          left: '50%',
-          width: 820,
-          height: 820,
-          transform: `translate(-50%, 0) scale(${spotlightScale})`,
-          borderRadius: '50%',
-          background: `radial-gradient(circle, ${themeColor}44 0%, rgba(255,255,255,0.08) 38%, transparent 70%)`,
-        }}
-      />
-
-      {/* Drifting volumetric mist layers (pure radial gradients for fast CPU rendering) */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 460 + mist1Y,
-          left: -140 + mist1X,
-          width: 820,
-          height: 520,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(226,232,240,0.14) 0%, rgba(226,232,240,0.04) 45%, transparent 72%)',
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 340 + mist2Y,
-          right: -160 + mist2X,
-          width: 860,
-          height: 560,
-          borderRadius: '50%',
-          background: `radial-gradient(circle, ${themeColor}2a 0%, rgba(255,255,255,0.07) 42%, transparent 72%)`,
-        }}
-      />
-
-      {/* Sweeping silver/white light-streak curves */}
       <svg
         viewBox="0 0 1080 1920"
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.65 }}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.45 }}
       >
         <defs>
           <linearGradient id="streakA" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -104,8 +69,8 @@ const LightStreaksAndMist: React.FC<{ themeColor: string; frame: number }> = ({
         <path
           d="M -80 680 C 340 1060, 720 620, 1180 1180"
           fill="none"
-          stroke="rgba(255,255,255,0.45)"
-          strokeWidth="2"
+          stroke={themeColor || 'rgba(255,255,255,0.45)'}
+          strokeWidth="2.5"
           strokeDasharray="340 1260"
           strokeDashoffset={dashOffset2}
         />
@@ -114,33 +79,105 @@ const LightStreaksAndMist: React.FC<{ themeColor: string; frame: number }> = ({
   );
 };
 
-const SceneOverlay: React.FC<{
+const SceneSlide: React.FC<{
   scene: SceneItem;
   themeColor: string;
+  fallbackProductUrl?: string;
   index: number;
   total: number;
-}> = ({ scene, themeColor, index, total }) => {
+}> = ({ scene, themeColor, fallbackProductUrl, index, total }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
 
-  const enter = spring({ frame, fps, config: { damping: 15, stiffness: 140 } });
+  const enter = spring({ frame, fps, config: { damping: 14, stiffness: 150 } });
+  const fadeIn = interpolate(frame, [0, 7], [0.25, 1], { extrapolateRight: 'clamp' });
   const fadeOut = interpolate(
     frame,
-    [Math.max(0, durationInFrames - 8), durationInFrames],
-    [1, 0],
+    [Math.max(0, durationInFrames - 7), durationInFrames],
+    [1, 0.25],
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
   );
+  const sceneOpacity = Math.min(fadeIn, fadeOut);
 
-  const yIn = interpolate(enter, [0, 1], [36, 0]);
+  const motion = scene.motion || MOTIONS[index % MOTIONS.length];
+  const progress = Math.min(1, frame / Math.max(1, durationInFrames));
+
+  let imgScale = 1.06;
+  let imgX = 0;
+  let imgY = 0;
+  if (motion === 'zoomIn') {
+    imgScale = interpolate(progress, [0, 1], [1.0, 1.14]);
+  } else if (motion === 'zoomOut') {
+    imgScale = interpolate(progress, [0, 1], [1.15, 1.02]);
+  } else if (motion === 'panRight') {
+    imgScale = 1.12;
+    imgX = interpolate(progress, [0, 1], [-28, 28]);
+  } else if (motion === 'panLeft') {
+    imgScale = 1.12;
+    imgX = interpolate(progress, [0, 1], [28, -28]);
+  }
+  imgY = Math.sin(frame / 20) * 8;
+
+  const activeImage = scene.imageUrl || fallbackProductUrl;
+  const isFullSceneImage = Boolean(scene.imageUrl);
+
+  const yIn = interpolate(enter, [0, 1], [38, 0]);
   const badgeScale = interpolate(enter, [0, 1], [0.88, 1]);
 
   return (
-    <AbsoluteFill style={{ opacity: fadeOut, pointerEvents: 'none' }}>
+    <AbsoluteFill style={{ opacity: sceneOpacity }}>
+      {/* Scene Visual */}
+      {activeImage &&
+        (isFullSceneImage ? (
+          <AbsoluteFill style={{ overflow: 'hidden' }}>
+            <Img
+              src={activeImage}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                transform: `translate(${imgX}px, ${imgY}px) scale(${imgScale})`,
+              }}
+            />
+          </AbsoluteFill>
+        ) : (
+          <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center', paddingBottom: 90 }}>
+            <div
+              style={{
+                width: 720,
+                height: 920,
+                borderRadius: 56,
+                overflow: 'hidden',
+                transform: `translate(${imgX}px, ${imgY}px) scale(${imgScale})`,
+                boxShadow: `0 40px 120px rgba(0, 0, 0, 0.78), 0 0 80px ${themeColor}40`,
+                border: '1.5px solid rgba(255,255,255,0.22)',
+                WebkitMaskImage:
+                  'radial-gradient(ellipse 92% 92% at 50% 50%, #000 72%, rgba(0,0,0,0.4) 92%, transparent 100%)',
+                maskImage:
+                  'radial-gradient(ellipse 92% 92% at 50% 50%, #000 72%, rgba(0,0,0,0.4) 92%, transparent 100%)',
+              }}
+            >
+              <Img src={activeImage} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
+          </AbsoluteFill>
+        ))}
+
+      {/* Top/Bottom Contrast Scrim */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background:
+            'linear-gradient(to bottom, rgba(5,8,14,0.62) 0%, rgba(5,8,14,0) 24%, rgba(5,8,14,0) 56%, rgba(5,8,14,0.88) 82%, rgba(5,8,14,0.97) 100%)',
+          pointerEvents: 'none',
+        }}
+      />
+
       {/* Top Safe Zone: Sleek Pill Badge */}
       <div
         style={{
           position: 'absolute',
-          top: 132,
+          top: 120,
           left: 72,
           right: 72,
           display: 'flex',
@@ -153,7 +190,7 @@ const SceneOverlay: React.FC<{
             display: 'inline-flex',
             alignItems: 'center',
             gap: 12,
-            background: 'rgba(15, 23, 42, 0.78)',
+            background: 'rgba(15, 23, 42, 0.76)',
             border: `1.5px solid ${themeColor || '#38bdf8'}`,
             boxShadow: `0 10px 30px ${themeColor}44`,
             color: '#f8fafc',
@@ -171,18 +208,17 @@ const SceneOverlay: React.FC<{
               height: 10,
               borderRadius: '50%',
               background: themeColor || '#38bdf8',
-              boxShadow: `0 0 14px ${themeColor || '#38bdf8'}`,
             }}
           />
           {scene.badge || `POIN ${index + 1}/${total}`}
         </div>
       </div>
 
-      {/* Bottom Safe Zone: Frameless High-Contrast Kinetic Typography */}
+      {/* Bottom Safe Zone: Kinetic Typography */}
       <div
         style={{
           position: 'absolute',
-          bottom: 125,
+          bottom: 118,
           left: 68,
           right: 68,
           textAlign: 'center',
@@ -197,7 +233,7 @@ const SceneOverlay: React.FC<{
             lineHeight: 1.12,
             margin: 0,
             letterSpacing: '-0.025em',
-            textShadow: '0 8px 32px rgba(0,0,0,0.85)',
+            textShadow: '0 8px 32px rgba(0,0,0,0.9)',
           }}
         >
           {scene.headline}
@@ -210,7 +246,7 @@ const SceneOverlay: React.FC<{
             lineHeight: 1.4,
             marginTop: 18,
             marginBottom: 0,
-            textShadow: '0 4px 20px rgba(0,0,0,0.85)',
+            textShadow: '0 4px 20px rgba(0,0,0,0.9)',
           }}
         >
           {scene.subtext}
@@ -226,30 +262,24 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
   audioUrl,
   productImageUrl,
   bgImageUrl,
-  fps = 30,
+  fps = 24,
   durationInFrames,
   scenes = [],
 }) => {
   const frame = useCurrentFrame();
   const progress = Math.min(1, frame / Math.max(1, durationInFrames - 1));
-  const bgScale = interpolate(frame, [0, Math.max(1, durationInFrames)], [1.0, 1.12], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  // Continuous 3D-feel luxury commercial product motion across the entire video
-  const floatY = Math.sin(frame / 22) * 18;
-  const tiltDeg = Math.sin(frame / 45) * 6.5 - 1.5;
-  const heroZoom = interpolate(
-    frame,
-    [0, Math.max(1, durationInFrames * 0.5), Math.max(2, durationInFrames)],
-    [0.98, 1.1, 1.04],
-    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
-  );
 
   const safeScenes = scenes.length
     ? scenes
-    : [{ headline: title, subtext: 'Promo Spesial Hari Ini', badge: 'PROMO', durationSec: 5, showProduct: true }];
+    : [
+        {
+          headline: title,
+          subtext: 'Promo Spesial Hari Ini',
+          badge: 'PROMO',
+          durationSec: 5,
+          showProduct: true,
+        },
+      ];
 
   const totalSceneSec = safeScenes.reduce((acc, s) => acc + Math.max(2, Number(s.durationSec) || 5), 0);
   let cursorFrame = 0;
@@ -262,82 +292,26 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
       }}
     >
       {bgImageUrl && (
-        <AbsoluteFill style={{ overflow: 'hidden', opacity: 0.58 }}>
-          <Img
-            src={bgImageUrl}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              transform: `scale(${bgScale})`,
-            }}
-          />
-        </AbsoluteFill>
-      )}
-      <LightStreaksAndMist themeColor={themeColor} frame={frame} />
-
-      {/* Center Hero Product Showcase (55-60% frame height, frameless floating luxury feel) */}
-      {productImageUrl && (
-        <AbsoluteFill
-          style={{
-            justifyContent: 'center',
-            alignItems: 'center',
-            paddingBottom: 90,
-          }}
-        >
-          <div
-            style={{
-              width: 720,
-              height: 920,
-              borderRadius: 56,
-              overflow: 'hidden',
-              transform: `translateY(${floatY}px) rotate(${tiltDeg}deg) scale(${heroZoom})`,
-              boxShadow: `0 40px 120px rgba(0, 0, 0, 0.78), 0 0 80px ${themeColor}40`,
-              border: '1.5px solid rgba(255,255,255,0.22)',
-              WebkitMaskImage:
-                'radial-gradient(ellipse 92% 92% at 50% 50%, #000 72%, rgba(0,0,0,0.4) 92%, transparent 100%)',
-              maskImage:
-                'radial-gradient(ellipse 92% 92% at 50% 50%, #000 72%, rgba(0,0,0,0.4) 92%, transparent 100%)',
-            }}
-          >
-            <Img
-              src={productImageUrl}
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-              }}
-            />
-          </div>
+        <AbsoluteFill style={{ overflow: 'hidden', opacity: 0.45 }}>
+          <Img src={bgImageUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         </AbsoluteFill>
       )}
 
-      {/* Bottom dark gradient scrim for crisp text contrast */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background:
-            'linear-gradient(to bottom, rgba(5,8,14,0.55) 0%, rgba(5,8,14,0) 22%, rgba(5,8,14,0) 58%, rgba(5,8,14,0.88) 84%, rgba(5,8,14,0.96) 100%)',
-          pointerEvents: 'none',
-        }}
-      />
-
-      {/* Dynamic Scene Overlays */}
       {safeScenes.map((scene, idx) => {
         const ratio = Math.max(2, Number(scene.durationSec) || 5) / Math.max(1, totalSceneSec);
         const sceneFrames =
           idx === safeScenes.length - 1
-            ? Math.max(30, durationInFrames - cursorFrame)
-            : Math.max(30, Math.round(durationInFrames * ratio));
+            ? Math.max(24, durationInFrames - cursorFrame)
+            : Math.max(24, Math.round(durationInFrames * ratio));
         const from = cursorFrame;
         cursorFrame += sceneFrames;
 
         return (
           <Sequence key={idx} from={from} durationInFrames={sceneFrames}>
-            <SceneOverlay
+            <SceneSlide
               scene={scene}
               themeColor={themeColor}
+              fallbackProductUrl={productImageUrl}
               index={idx}
               total={safeScenes.length}
             />
@@ -345,16 +319,18 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
         );
       })}
 
+      <LightStreaksOverlay themeColor={themeColor} frame={frame} />
+
       {/* Sleek Bottom Progress Line */}
       <div
         style={{
           position: 'absolute',
-          bottom: 58,
+          bottom: 54,
           left: 72,
           right: 72,
           height: 6,
           borderRadius: 999,
-          background: 'rgba(255,255,255,0.14)',
+          background: 'rgba(255,255,255,0.16)',
           overflow: 'hidden',
         }}
       >
