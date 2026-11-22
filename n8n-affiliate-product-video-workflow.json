@@ -1,0 +1,401 @@
+{
+  "name": "AI Affiliate Product Video (Foto Telegram -> Gemini Vision + TTS + Remotion -> Telegram)",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "tg-trigger-aff",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1220,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $input.first().json.message;\nif (!msg) return [];\nconst chatId = String(msg.chat.id);\nconst allowedChatId = ''; // OPSIONAL: Isi Chat ID Telegram Anda untuk membatasi akses\nif (allowedChatId && chatId !== allowedChatId) return [];\n\nconst photos = Array.isArray(msg.photo) ? msg.photo : [];\nif (photos.length === 0) {\n  return [{ json: { mode: 'help', chatId } }];\n}\n\nconst bestPhoto = photos[photos.length - 1];\nreturn [{\n  json: {\n    mode: 'affiliate',\n    chatId,\n    fileId: bestPhoto.file_id,\n    userNotes: (msg.caption || '').trim(),\n    jobId: `aff_${Date.now()}`\n  }\n}];"
+      },
+      "id": "check-photo",
+      "name": "Check Photo Upload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -980,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-photo-cond",
+              "leftValue": "={{ $json.mode }}",
+              "rightValue": "affiliate",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-has-photo",
+      "name": "Has Photo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -740,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "📸 Kirim *foto produk* ke bot ini (boleh tambah caption nama/harga/keunggulan produk) untuk langsung dibuatkan video promosi affiliate otomatis!",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "tg-help-aff",
+      "name": "Telegram Help",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -480,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "⏳ Foto produk diterima! AI sedang menganalisis produk, membuat skrip affiliate, voiceover Gemini TTS, dan merender video promosi 9:16...",
+        "additionalFields": {}
+      },
+      "id": "tg-notify-aff",
+      "name": "Telegram Notify Start",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -480,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $('Check Photo Upload').item.json.fileId }}"
+      },
+      "id": "tg-get-photo",
+      "name": "Telegram Download Photo",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -240,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const buffer = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst meta = $('Check Photo Upload').item.json;\nconst binaryInfo = $input.first().binary?.data || {};\nreturn [{\n  json: {\n    jobId: meta.jobId,\n    chatId: meta.chatId,\n    userNotes: meta.userNotes,\n    productImageBase64: buffer.toString('base64'),\n    productImageMimeType: binaryInfo.mimeType || 'image/jpeg'\n  }\n}];"
+      },
+      "id": "encode-photo-b64",
+      "name": "Encode Photo Base64",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=YOUR_GEMINI_API_KEY",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Kamu adalah AI Creative Director & Affiliate Copywriter profesional untuk video promosi pendek 9:16 (TikTok, Reels, Shorts) berdurasi 25-35 detik dalam bahasa Indonesia.\\n\\nAnalisis foto produk terlampir dan catatan user berikut (jika ada): {{ $json.userNotes || 'Tidak ada catatan tambahan, identifikasi produk langsung dari foto' }}\\n\\nBuat output JSON VALID (tanpa markdown) dengan struktur persis:\\n{\\n  \\\"title\\\": \\\"Judul video promo menarik max 70 karakter\\\",\\n  \\\"caption\\\": \\\"Caption promosi affiliate siap posting + CTA cek keranjang/link + hashtag relevan\\\",\\n  \\\"narration\\\": \\\"Skrip voiceover persuasif (Hook -> Masalah -> Solusi & Keunggulan Produk -> CTA Checkout) 25-35 detik dalam bahasa Indonesia natural tanpa simbol aneh\\\",\\n  \\\"themeColor\\\": \\\"#0b63ce\\\",\\n  \\\"scenes\\\": [\\n    {\\n      \\\"badge\\\": \\\"HOOK / KEUNGGULAN 1 / KEUNGGULAN 2 / PROMO CTA\\\",\\n      \\\"headline\\\": \\\"Teks punchy 3-5 kata\\\",\\n      \\\"subtext\\\": \\\"Penjelasan singkat max 12 kata\\\",\\n      \\\"durationSec\\\": 6,\\n      \\\"showProduct\\\": true\\n    }\\n  ]\\n}\"\n      },\n      {\n        \"inlineData\": {\n          \"mimeType\": \"{{ $json.productImageMimeType }}\",\n          \"data\": \"{{ $json.productImageBase64 }}\"\n        }\n      }\n    ]\n  }],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\"\n  }\n}",
+        "options": {}
+      },
+      "id": "gemini-vision-script",
+      "name": "Gemini Vision Script & Scenes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        120
+      ],
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.candidates?.[0]?.content?.parts?.[0]?.text || '{}';\nconst parsed = JSON.parse(raw);\nconst photoData = $('Encode Photo Base64').item.json;\n\nreturn [{\n  json: {\n    jobId: photoData.jobId,\n    chatId: photoData.chatId,\n    productImageBase64: photoData.productImageBase64,\n    productImageMimeType: photoData.productImageMimeType,\n    title: parsed.title || 'Rekomendasi Produk Pilihan',\n    caption: parsed.caption || 'Cek link produk sekarang! #racunshopee #affiliate',\n    narration: parsed.narration || 'Produk wajib punya hari ini! Cek link sekarang sebelum kehabisan.',\n    themeColor: parsed.themeColor || '#0b63ce',\n    scenes: Array.isArray(parsed.scenes) ? parsed.scenes : []\n  }\n}];"
+      },
+      "id": "parse-aff-script",
+      "name": "Parse Affiliate Script",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=YOUR_GEMINI_API_KEY",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"Bacakan dengan gaya promosi affiliate yang antusias, ramah, jelas, dan meyakinkan: {{ $json.narration }}\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"responseModalities\": [\"AUDIO\"],\n    \"speechConfig\": {\n      \"voiceConfig\": {\n        \"prebuiltVoiceConfig\": {\n          \"voiceName\": \"Kore\"\n        }\n      }\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "gemini-tts-aff",
+      "name": "Gemini TTS Voiceover",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        120
+      ],
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://digitalspacehubautomation-remotionrenderer-8bbpky:3000/render",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"jobId\": \"{{ $('Parse Affiliate Script').item.json.jobId }}\",\n  \"title\": \"{{ $('Parse Affiliate Script').item.json.title }}\",\n  \"caption\": \"{{ $('Parse Affiliate Script').item.json.caption }}\",\n  \"themeColor\": \"{{ $('Parse Affiliate Script').item.json.themeColor }}\",\n  \"scenes\": {{ JSON.stringify($('Parse Affiliate Script').item.json.scenes) }},\n  \"productImageBase64\": \"{{ $('Parse Affiliate Script').item.json.productImageBase64 }}\",\n  \"productImageMimeType\": \"{{ $('Parse Affiliate Script').item.json.productImageMimeType }}\",\n  \"audioBase64\": \"{{ $json.candidates[0].content.parts[0].inlineData.data }}\",\n  \"audioMimeType\": \"{{ $json.candidates[0].content.parts[0].inlineData.mimeType || 'audio/L16;rate=24000' }}\"\n}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "remotion-render-aff",
+      "name": "Remotion Render Affiliate Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.videoUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "download-aff-mp4",
+      "name": "Download Rendered MP4",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "sendVideo",
+        "chatId": "={{ $('Parse Affiliate Script').item.json.chatId }}",
+        "binaryData": true,
+        "additionalFields": {
+          "caption": "=🎬 *{{ $('Parse Affiliate Script').item.json.title }}*\n\n{{ $('Parse Affiliate Script').item.json.caption }}",
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "tg-send-aff-video",
+      "name": "Telegram Send Affiliate Video",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1440,
+        120
+      ]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check Photo Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Photo Upload": {
+      "main": [
+        [
+          {
+            "node": "Has Photo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Photo?": {
+      "main": [
+        [
+          {
+            "node": "Telegram Notify Start",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram Help",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Notify Start": {
+      "main": [
+        [
+          {
+            "node": "Telegram Download Photo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Download Photo": {
+      "main": [
+        [
+          {
+            "node": "Encode Photo Base64",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Encode Photo Base64": {
+      "main": [
+        [
+          {
+            "node": "Gemini Vision Script & Scenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Vision Script & Scenes": {
+      "main": [
+        [
+          {
+            "node": "Parse Affiliate Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Affiliate Script": {
+      "main": [
+        [
+          {
+            "node": "Gemini TTS Voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini TTS Voiceover": {
+      "main": [
+        [
+          {
+            "node": "Remotion Render Affiliate Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remotion Render Affiliate Video": {
+      "main": [
+        [
+          {
+            "node": "Download Rendered MP4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Rendered MP4": {
+      "main": [
+        [
+          {
+            "node": "Telegram Send Affiliate Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -3,17 +3,19 @@ import { Composition } from 'remotion';
 import { MotionGraphic, MotionGraphicProps } from './MotionGraphic';
 
 const defaultProps: MotionGraphicProps = {
-  title: 'Tips UTBK-SNBT 2026',
+  title: 'Promo Produk Affiliate',
   themeColor: '#0b63ce',
   audioUrl: '',
+  productImageUrl: '',
   fps: 30,
   durationInFrames: 900,
   scenes: [
     {
-      headline: 'Strategi Skor IRT Tinggi',
-      subtext: 'Fokus kuasai soal penalaran dengan tingkat akurasi konsisten.',
+      headline: 'Produk Wajib Punya!',
+      subtext: 'Kualitas terbaik dengan harga promo spesial hari ini.',
       badge: 'HOOK',
       durationSec: 5,
+      showProduct: true,
     },
   ],
 };
