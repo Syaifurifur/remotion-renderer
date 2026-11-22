@@ -11,9 +11,11 @@ app.use(express.json({ limit: '50mb' }));
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || `http://localhost:${PORT}`).replace(/\/+$/, '');
 const OUTPUT_DIR = path.join(__dirname, 'outputs');
+const ASSETS_DIR = path.join(OUTPUT_DIR, 'assets');
 const WORK_DIR = path.join(__dirname, 'work');
 
 fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+fs.mkdirSync(ASSETS_DIR, { recursive: true });
 fs.mkdirSync(WORK_DIR, { recursive: true });
 
 app.use('/outputs', express.static(OUTPUT_DIR));
@@ -98,6 +100,30 @@ app.get('/templates', (_req, res) => {
   });
 });
 
+app.post('/assets/upload', (req, res) => {
+  try {
+    const { imageBase64, mimeType, filename } = req.body || {};
+    if (!imageBase64) {
+      return res.status(400).json({ ok: false, error: 'imageBase64 is required' });
+    }
+    const mime = String(mimeType || 'image/jpeg').toLowerCase();
+    const ext = mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : 'jpg';
+    const safeBase = String(filename || `asset_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`)
+      .replace(/[^a-zA-Z0-9_-]/g, '');
+    const outName = `${safeBase}.${ext}`;
+    const outPath = path.join(ASSETS_DIR, outName);
+    fs.writeFileSync(outPath, Buffer.from(imageBase64, 'base64'));
+    return res.json({
+      ok: true,
+      filename: outName,
+      localUrl: `http://127.0.0.1:${PORT}/outputs/assets/${outName}`,
+      publicUrl: `${PUBLIC_BASE_URL}/outputs/assets/${outName}`,
+    });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.post('/jobs/pending', (req, res) => {
   const jobId = String(req.body.jobId || `job_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '');
   const metaPath = path.join(OUTPUT_DIR, `${jobId}.pending.json`);
@@ -148,6 +174,11 @@ app.post('/render', async (req, res) => {
         next.imageUrl = writeImageFile(jobId, `scene_${idx}`, next.imageBase64, next.imageMimeType || 'image/png');
         delete next.imageBase64;
         delete next.imageMimeType;
+      } else if (next.imageUrl && String(next.imageUrl).includes('/outputs/')) {
+        const relMatch = String(next.imageUrl).match(/\/outputs\/.+$/);
+        if (relMatch) {
+          next.imageUrl = `http://127.0.0.1:${PORT}${relMatch[0]}`;
+        }
       }
       return next;
     });
