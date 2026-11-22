@@ -22,23 +22,21 @@ const defaultProps: MotionGraphicProps = {
   ],
 };
 
-export const RemotionRoot: React.FC = () => {
-  return (
-    <>
-      <Composition
-        id="MotionGraphic"
-        component={MotionGraphic}
-        durationInFrames={900}
-        fps={30}
-        width={1080}
-        height={1920}
-        defaultProps={defaultProps}
-        calculateMetadata={({ props }) => ({
-          durationInFrames: Math.max(90, props.durationInFrames || 900),
-          fps: props.fps || 30,
-        })}
-      />
-      <NarayyaComposition />
-    </>
-  );
-};
+export const RemotionRoot: React.FC = () => (
+  <>
+    <Composition<MotionGraphicProps>
+      id="MotionGraphic"
+      component={MotionGraphic}
+      durationInFrames={900}
+      fps={30}
+      width={1080}
+      height={1920}
+      defaultProps={defaultProps}
+      calculateMetadata={({ props }) => ({
+        durationInFrames: Math.max(90, props.durationInFrames || 900),
+        fps: props.fps || 30,
+      })}
+    />
+    <NarayyaComposition />
+  </>
+);
