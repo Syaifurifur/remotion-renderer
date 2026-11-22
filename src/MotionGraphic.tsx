@@ -13,6 +13,7 @@ import { BeautyIcon, resolveIconCategory } from './BeautyIcons';
 import { BarChartAnim } from './components/bar-chart-anim/BarChartAnim';
 import { BounceInHeadline } from './components/bounce-in-headline/BounceInHeadline';
 import { ChapterTitle } from './components/chapter-title/ChapterTitle';
+import { EditorialMotion } from './components/editorial-motion/EditorialMotion';
 import { EndCard } from './components/end-card/EndCard';
 import { GlitchText } from './components/glitch-text/GlitchText';
 import { GradientTextSweep } from './components/gradient-text-sweep/GradientTextSweep';
@@ -636,6 +637,24 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
           durationSec: 5,
         },
       ];
+
+  // If templateStyle is 'editorial-motion', render the Warm Paper Editorial Motion skill template
+  if (templateStyle === 'editorial-motion') {
+    return (
+      <AbsoluteFill>
+        <EditorialMotion
+          title={title}
+          brandName={branding?.name || 'NARAYYA BEAUTY'}
+          tagline={branding?.tagline}
+          accentColor={branding?.accent || themeColor}
+          bgImageUrl={bgImageUrl}
+          productImageUrl={productImageUrl}
+          scenes={safeScenes}
+        />
+        {audioUrl ? <Audio src={audioUrl} /> : null}
+      </AbsoluteFill>
+    );
+  }
 
   // If templateStyle is 'social-reel', render the genuine SocialReel template with full scene sync + images + icons + infographic bar
   if (templateStyle === 'social-reel') {

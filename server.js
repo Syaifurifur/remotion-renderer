@@ -89,7 +89,7 @@ app.get('/health', (_req, res) => {
 app.get('/templates', (_req, res) => {
   res.json({
     presets: [
-      { id: 'luxury-editorial', label: '✨ Luxury Editorial (Bokeh + Bounce)', compositionId: 'MotionGraphic' },
+      { id: 'editorial-motion', label: '✨ Editorial Motion (Paper Grid)', compositionId: 'MotionGraphic' },
       { id: 'social-reel', label: '📱 Social Reel Frame', compositionId: 'MotionGraphic' },
       { id: 'kinetic-word-stack', label: '⚡ Kinetic Word Stack', compositionId: 'MotionGraphic' },
       { id: 'neon-sign', label: '💡 Neon Glow Promo', compositionId: 'MotionGraphic' },
