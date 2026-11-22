@@ -344,16 +344,18 @@ const BottomChrome: React.FC<{ caption: string; accent: string; progress: number
 // ─── The vertical "phone" video player (carries the reel motion) ─
 const PlayerBody: React.FC<SocialReelProps> = (p) => {
   const frame = useCurrentFrame();
+  const { durationInFrames } = useVideoConfig();
+  const totalFrames = Math.max(60, durationInFrames || DURATION_FRAMES);
   // Ken-Burns slow zoom on the backdrop
-  const kb = interpolate(frame, [0, DURATION_FRAMES], [1, 1.08], {
+  const kb = interpolate(frame, [0, totalFrames], [1, 1.08], {
     extrapolateRight: "clamp",
   });
-  const progress = interpolate(frame, [0, DURATION_FRAMES], [0, 1], {
+  const progress = interpolate(frame, [0, totalFrames], [0, 1], {
     extrapolateRight: "clamp",
   });
 
-  // Scene windows scaled to the 150-frame total (was 5 scenes over 15s @ 1080x1920)
-  const S = (sec: number) => Math.round((sec / 5) * 30); // remap 15s plan -> 5s clip
+  // Scene windows scaled to totalFrames (25-unit timeline across 4 scenes)
+  const S = (sec: number) => Math.round((sec / 25) * totalFrames);
   return (
     <AbsoluteFill style={{ background: p.bgFrom, overflow: "hidden" }}>
       {/* backdrop gradient with Ken-Burns zoom */}
@@ -473,7 +475,8 @@ const PlayerBody: React.FC<SocialReelProps> = (p) => {
 };
 
 export const SocialReel: React.FC<SocialReelProps> = (props) => {
-  // Landscape stage (1920x1080) framing a 9:16 vertical player in the center.
+  const { width, height } = useVideoConfig();
+  const isPortrait = height > width;
   const playerW = 608;
   const playerH = 1080;
   return (
@@ -490,10 +493,14 @@ export const SocialReel: React.FC<SocialReelProps> = (props) => {
         style={{
           width: playerW,
           height: playerH,
-          borderRadius: 36,
+          borderRadius: isPortrait ? 0 : 36,
           overflow: "hidden",
           position: "relative",
-          boxShadow: "0 40px 120px rgba(0,0,0,0.6), 0 0 0 2px rgba(255,255,255,0.06)",
+          transform: isPortrait ? `scale(${width / playerW})` : undefined,
+          transformOrigin: "center center",
+          boxShadow: isPortrait
+            ? "none"
+            : "0 40px 120px rgba(0,0,0,0.6), 0 0 0 2px rgba(255,255,255,0.06)",
         }}
       >
         <PlayerBody {...props} />

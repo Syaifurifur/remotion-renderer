@@ -1,16 +1,14 @@
 import React from 'react';
-import {
-  AbsoluteFill,
-  Audio,
-  Img,
-  interpolate,
-  Sequence,
-  spring,
-  useCurrentFrame,
-  useVideoConfig,
-} from 'remotion';
-import { BeautyIcon, resolveIconCategory } from './BeautyIcons';
-import { AmbientBokeh, BounceHeadline, BrandHeaderCard } from './TemplateEffects';
+import { AbsoluteFill, Audio, Sequence } from 'remotion';
+import { BounceInHeadline } from './components/bounce-in-headline/BounceInHeadline';
+import { ChapterTitle } from './components/chapter-title/ChapterTitle';
+import { EndCard } from './components/end-card/EndCard';
+import { GlitchText } from './components/glitch-text/GlitchText';
+import { GradientTextSweep } from './components/gradient-text-sweep/GradientTextSweep';
+import { KineticWordStack } from './components/kinetic-word-stack/KineticWordStack';
+import { NeonSign } from './components/neon-sign/NeonSign';
+import { SocialReel } from './components/social-reel/SocialReel';
+import { TextMaskReveal } from './components/text-mask-reveal/TextMaskReveal';
 
 export interface SceneItem {
   headline: string;
@@ -44,323 +42,218 @@ export interface MotionGraphicProps {
   scenes: SceneItem[];
 }
 
-const MOTIONS: Array<'zoomIn' | 'panRight' | 'zoomOut' | 'panLeft'> = [
-  'zoomIn',
-  'panRight',
-  'zoomOut',
-  'panLeft',
-];
+function splitToWords(text: string, maxItems = 4): string[] {
+  const words = String(text || '')
+    .trim()
+    .replace(/[!?.]+$/g, '')
+    .split(/\s+/)
+    .filter(Boolean);
+  if (words.length === 0) return ['REVEAL', 'NOW'];
+  if (words.length <= maxItems) return words;
+  const perGroup = Math.ceil(words.length / maxItems);
+  const grouped: string[] = [];
+  for (let i = 0; i < words.length; i += perGroup) {
+    grouped.push(words.slice(i, i + perGroup).join(' '));
+  }
+  return grouped.slice(0, maxItems);
+}
 
-const LightStreaksOverlay: React.FC<{ themeColor: string; frame: number }> = ({
-  themeColor,
-  frame,
-}) => {
-  const dashOffset1 = -(frame * 11) % 1600;
-  const dashOffset2 = (frame * 8) % 1600;
-
-  return (
-    <AbsoluteFill style={{ pointerEvents: 'none', overflow: 'hidden' }}>
-      <svg
-        viewBox="0 0 1080 1920"
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.42 }}
-      >
-        <defs>
-          <linearGradient id="streakA" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="rgba(255,255,255,0)" />
-            <stop offset="50%" stopColor="rgba(255,255,255,0.85)" />
-            <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-          </linearGradient>
-        </defs>
-        <path
-          d="M -120 1280 C 260 940, 780 1120, 1220 520"
-          fill="none"
-          stroke="url(#streakA)"
-          strokeWidth="3.5"
-          strokeDasharray="420 1180"
-          strokeDashoffset={dashOffset1}
-        />
-        <path
-          d="M -80 680 C 340 1060, 720 620, 1180 1180"
-          fill="none"
-          stroke={themeColor || 'rgba(255,255,255,0.45)'}
-          strokeWidth="2.5"
-          strokeDasharray="340 1260"
-          strokeDashoffset={dashOffset2}
-        />
-      </svg>
-    </AbsoluteFill>
-  );
-};
-
-const SceneSlide: React.FC<{
+const StandardSceneTemplate: React.FC<{
+  styleId: string;
   scene: SceneItem;
-  themeColor: string;
-  accentColor: string;
-  fallbackProductUrl?: string;
-  hasBrandHeader: boolean;
   index: number;
   total: number;
-}> = ({ scene, themeColor, accentColor, fallbackProductUrl, hasBrandHeader, index, total }) => {
-  const frame = useCurrentFrame();
-  const { fps, durationInFrames } = useVideoConfig();
+  sceneFrames: number;
+  fps: number;
+  themeColor: string;
+  branding?: BrandingConfig;
+}> = ({ styleId, scene, index, total, sceneFrames, fps, themeColor, branding }) => {
+  const accent = branding?.accent || themeColor || '#22d3ee';
+  const badge = scene.badge || `SCENE ${index + 1}`;
+  const headline = String(scene.headline || 'HIGHLIGHT').trim();
+  const subtext = String(scene.subtext || branding?.tagline || '').trim();
 
-  const enter = spring({ frame, fps, config: { damping: 14, stiffness: 150 } });
-  const fadeIn = interpolate(frame, [0, 7], [0.25, 1], { extrapolateRight: 'clamp' });
-  const fadeOut = interpolate(
-    frame,
-    [Math.max(0, durationInFrames - 7), durationInFrames],
-    [1, 0.25],
-    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
-  );
-  const sceneOpacity = Math.min(fadeIn, fadeOut);
-
-  const motion = scene.motion || MOTIONS[index % MOTIONS.length];
-  const progress = Math.min(1, frame / Math.max(1, durationInFrames));
-
-  let imgScale = 1.06;
-  let imgX = 0;
-  let imgY = 0;
-  if (motion === 'zoomIn') {
-    imgScale = interpolate(progress, [0, 1], [1.0, 1.14]);
-  } else if (motion === 'zoomOut') {
-    imgScale = interpolate(progress, [0, 1], [1.15, 1.02]);
-  } else if (motion === 'panRight') {
-    imgScale = 1.12;
-    imgX = interpolate(progress, [0, 1], [-28, 28]);
-  } else if (motion === 'panLeft') {
-    imgScale = 1.12;
-    imgX = interpolate(progress, [0, 1], [28, -28]);
+  // Mix of standard Remotion templates when 'luxury-editorial' or 'standard-mix' is selected
+  let resolvedStyle = styleId;
+  if (styleId === 'luxury-editorial' || styleId === 'standard-mix' || !styleId) {
+    if (index === total - 1 && total > 1) {
+      resolvedStyle = 'end-card';
+    } else {
+      const cycle = ['gradient-text-sweep', 'chapter-title', 'text-mask-reveal', 'kinetic-word-stack'];
+      resolvedStyle = cycle[index % cycle.length];
+    }
   }
-  imgY = Math.sin(frame / 20) * 8;
 
-  const activeBgImage = scene.imageUrl;
-  const showFloatingProduct = Boolean(fallbackProductUrl) && scene.showProduct !== false;
-  const prodFloatY = Math.sin(frame / 18) * 14;
-  const prodTilt = Math.sin(frame / 36) * 4.5 - 1;
-  const prodScale = interpolate(progress, [0, 1], [0.97, 1.05]);
-
-  const iconType = resolveIconCategory(scene.icon, scene.badge, scene.headline);
-  const iconFloat = Math.sin(frame / 16) * 10;
-  const iconScale = interpolate(enter, [0, 1], [0.75, 1]);
-  const badgeScale = interpolate(enter, [0, 1], [0.88, 1]);
-
-  return (
-    <AbsoluteFill style={{ opacity: sceneOpacity }}>
-      {/* Scene AI Background Visual */}
-      {activeBgImage && (
-        <AbsoluteFill style={{ overflow: 'hidden', opacity: 0.72 }}>
-          <Img
-            src={activeBgImage}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              transform: `translate(${imgX}px, ${imgY}px) scale(${imgScale})`,
-            }}
-          />
-        </AbsoluteFill>
-      )}
-
-      {/* Floating Hero Product Photo OR Center Editorial Icon Showcase */}
-      {showFloatingProduct ? (
-        <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center', paddingBottom: 110 }}>
-          <div
-            style={{
-              width: 640,
-              height: 820,
-              borderRadius: 52,
-              overflow: 'hidden',
-              transform: `translateY(${prodFloatY}px) rotate(${prodTilt}deg) scale(${prodScale})`,
-              boxShadow: `0 40px 120px rgba(0, 0, 0, 0.85), 0 0 80px ${themeColor}44`,
-              border: '1.5px solid rgba(255,255,255,0.26)',
-              WebkitMaskImage:
-                'radial-gradient(ellipse 92% 92% at 50% 50%, #000 72%, rgba(0,0,0,0.4) 92%, transparent 100%)',
-              maskImage:
-                'radial-gradient(ellipse 92% 92% at 50% 50%, #000 72%, rgba(0,0,0,0.4) 92%, transparent 100%)',
-            }}
-          >
-            <Img src={fallbackProductUrl!} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          </div>
-        </AbsoluteFill>
-      ) : (
-        <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center', paddingBottom: 180 }}>
-          <div
-            style={{
-              width: 240,
-              height: 240,
-              borderRadius: '50%',
-              background: 'rgba(255, 255, 255, 0.92)',
-              border: `3px solid ${accentColor}`,
-              boxShadow: `0 24px 70px rgba(0,0,0,0.25), 0 0 60px ${themeColor}55`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transform: `translateY(${iconFloat}px) scale(${iconScale})`,
-            }}
-          >
-            <BeautyIcon type={iconType} primaryColor="#e11d74" accentColor={themeColor || '#7c3aed'} size={132} />
-          </div>
-        </AbsoluteFill>
-      )}
-
-      {/* Top/Bottom Contrast Scrim */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background:
-            'linear-gradient(to bottom, rgba(5,8,14,0.48) 0%, rgba(5,8,14,0) 24%, rgba(5,8,14,0) 56%, rgba(5,8,14,0.86) 82%, rgba(5,8,14,0.96) 100%)',
-          pointerEvents: 'none',
-        }}
-      />
-
-      {/* Top Safe Zone: Sleek Pill Badge + Mini Icon */}
-      <div
-        style={{
-          position: 'absolute',
-          top: hasBrandHeader ? 176 : 116,
-          left: 72,
-          right: 72,
-          display: 'flex',
-          justifyContent: 'center',
-          transform: `scale(${badgeScale})`,
-        }}
-      >
-        <div
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 12,
-            background: 'rgba(15, 23, 42, 0.78)',
-            border: `1.5px solid ${accentColor || '#38bdf8'}`,
-            boxShadow: `0 10px 30px ${themeColor}44`,
-            color: '#f8fafc',
-            fontSize: 25,
-            fontWeight: 800,
-            letterSpacing: '0.14em',
-            padding: '10px 26px',
-            borderRadius: 999,
-            textTransform: 'uppercase',
-          }}
-        >
-          <BeautyIcon type={iconType} primaryColor="#f472b6" accentColor="#ffffff" size={30} />
-          {scene.badge || `POIN ${index + 1}/${total}`}
-        </div>
-      </div>
-
-      {/* Bottom Safe Zone: Bounce-In Headline + Subtext */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 118,
-          left: 68,
-          right: 68,
-          textAlign: 'center',
-        }}
-      >
-        <BounceHeadline
-          text={scene.headline}
-          color="#ffffff"
-          fontSize={62}
-          bounces={2}
-          height={34}
-          delay={0}
-          duration={20}
+  switch (resolvedStyle) {
+    case 'kinetic-word-stack':
+      return (
+        <KineticWordStack
+          backgroundColor="#050818"
+          accentColor="#22d3ee"
+          textColor="#ecfeff"
+          words={splitToWords(headline, 4)}
         />
-        <p
-          style={{
-            color: '#e2e8f0',
-            fontSize: 34,
-            fontWeight: 500,
-            lineHeight: 1.4,
-            marginTop: 18,
-            marginBottom: 0,
-            textShadow: '0 4px 20px rgba(0,0,0,0.9)',
-          }}
-        >
-          {scene.subtext}
-        </p>
-      </div>
-    </AbsoluteFill>
-  );
+      );
+
+    case 'text-mask-reveal':
+      return (
+        <TextMaskReveal
+          backgroundColor="#050818"
+          accentColor={accent}
+          textColor="#ecfeff"
+          lines={splitToWords(headline, 3)}
+        />
+      );
+
+    case 'gradient-text-sweep':
+      return (
+        <GradientTextSweep
+          backgroundColor="#050818"
+          accentColor={accent}
+          textColor="#ecfeff"
+          headline={headline}
+          subline={subtext || badge}
+        />
+      );
+
+    case 'neon-sign':
+      return (
+        <NeonSign
+          backgroundColor="#080010"
+          neonColor="#f0abfc"
+          glowColor="#c026d3"
+          flickerColor="#e879f9"
+          frameColor="#3f3f46"
+          textColor="#fae8ff"
+          subColor="#f0abfc"
+          signText={splitToWords(headline, 2).join(' ').toUpperCase()}
+          subText={subtext || badge}
+        />
+      );
+
+    case 'glitch-text': {
+      const words = splitToWords(headline, 2).join(' ').toUpperCase();
+      const dynamicFont = Math.max(48, Math.min(110, Math.floor(860 / Math.max(6, words.length))));
+      return (
+        <GlitchText
+          text={words}
+          glitchColor="#FFFFFF"
+          intensity={0.8}
+          backgroundColor="#0A0A0F"
+          fontSize={dynamicFont}
+          duration={Math.max(2, sceneFrames / Math.max(1, fps))}
+        />
+      );
+    }
+
+    case 'bounce-in-headline':
+      return (
+        <BounceInHeadline
+          headline={splitToWords(headline, 2).join(' ')}
+          background="#111827"
+          color="#fbbf24"
+          bounces={3}
+          height={110}
+          delay={6}
+          duration={32}
+        />
+      );
+
+    case 'end-card':
+      return (
+        <EndCard
+          title={headline}
+          subtitle={subtext || branding?.tagline || 'LEARN MORE'}
+          ctaText={badge || branding?.name || 'Follow Now'}
+          background="#0b1f3a"
+          titleColor="#ffffff"
+          accentColor="#d4af37"
+        />
+      );
+
+    case 'chapter-title':
+    default:
+      return (
+        <ChapterTitle
+          chapterLabel={badge}
+          title={headline}
+          subtitle={subtext}
+          background="#0d1117"
+          chapterColor="#d4af37"
+          titleColor="#ffffff"
+        />
+      );
+  }
 };
 
 export const MotionGraphic: React.FC<MotionGraphicProps> = ({
   title,
-  themeColor = '#0b63ce',
+  themeColor = '#22d3ee',
   audioUrl,
-  productImageUrl,
-  bgImageUrl,
   branding,
-  templateStyle = 'luxury-editorial',
+  templateStyle = 'social-reel',
   fps = 24,
   durationInFrames,
   scenes = [],
 }) => {
-  const frame = useCurrentFrame();
-  const progress = Math.min(1, frame / Math.max(1, durationInFrames - 1));
-  const bgScale = interpolate(frame, [0, Math.max(1, durationInFrames)], [1.0, 1.12], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  const isBranded = Boolean(branding?.name);
-  const accentColor =
-    templateStyle === 'neon-sign'
-      ? '#f43f5e'
-      : templateStyle === 'glitch-text'
-        ? '#22d3ee'
-        : templateStyle === 'kinetic-word-stack'
-          ? '#f59e0b'
-          : branding?.accent || branding?.primary || themeColor || '#38bdf8';
-  const bokehColors = isBranded
-    ? [branding?.primary || '#F8C6D0', branding?.accent || '#D4A5A5', '#FFFFFF']
-    : [accentColor, '#38bdf8', '#ffffff'];
-
-  const bgGradient =
-    templateStyle === 'neon-sign'
-      ? 'linear-gradient(165deg, #090314 0%, #1d0936 52%, #05010a 100%)'
-      : templateStyle === 'glitch-text'
-        ? 'linear-gradient(165deg, #06131c 0%, #0d2336 50%, #03070d 100%)'
-        : templateStyle === 'social-reel'
-          ? 'linear-gradient(165deg, #1b1124 0%, #311b3b 50%, #0e0714 100%)'
-          : isBranded
-            ? 'linear-gradient(165deg, #2a1820 0%, #422530 50%, #1b0f14 100%)'
-            : 'linear-gradient(165deg, #10151c 0%, #1c2430 48%, #090d14 100%)';
-
   const safeScenes = scenes.length
     ? scenes
     : [
         {
           headline: title,
-          subtext: branding?.tagline || 'Promo Spesial Hari Ini',
-          badge: 'PROMO',
+          subtext: branding?.tagline || 'Standard Remotion Template',
+          badge: 'SCENE 1',
           durationSec: 5,
-          showProduct: true,
         },
       ];
+
+  // If templateStyle is 'social-reel', render the genuine SocialReel standard template directly
+  if (templateStyle === 'social-reel') {
+    const s0 = safeScenes[0] || { headline: title, subtext: '' };
+    const s1 = safeScenes[1] || s0;
+    const s2 = safeScenes[2] || s1;
+    const s3 = safeScenes[3] || s2;
+    const hWords = String(s0.headline || title).trim().split(/\s+/);
+    const mid = Math.ceil(hWords.length / 2);
+    const headlineTop = hWords.slice(0, mid).join(' ') || title;
+    const headlineAccent = hWords.slice(mid).join(' ') || s0.badge || 'NOW!';
+
+    const infoLines = [
+      s2.headline,
+      s2.subtext,
+      s1.subtext,
+    ]
+      .map((line) => String(line || '').trim())
+      .filter(Boolean)
+      .slice(0, 3);
+
+    return (
+      <AbsoluteFill>
+        <SocialReel
+          brandName={branding?.name || 'NARAYYA BEAUTY'}
+          handle={`@${String(branding?.name || 'narayyabeauty').toLowerCase().replace(/[^a-z0-9]/g, '')}`}
+          headline={headlineTop}
+          headlineAccent={headlineAccent}
+          secondCopy={`${s1.headline}\n${s1.subtext || ''}`.trim()}
+          infoLines={infoLines.length ? infoLines : [title, branding?.tagline || 'Follow for more']}
+          ctaText={s3.headline || s3.badge || 'Check Now →'}
+          accentColor="#ff3b7f"
+          bgFrom="#1a1a2e"
+          bgVia="#16213e"
+          bgTo="#0f3460"
+          caption={`${title} #remotion #reels`}
+          likeCount="12.4K"
+        />
+        {audioUrl ? <Audio src={audioUrl} /> : null}
+      </AbsoluteFill>
+    );
+  }
 
   const totalSceneSec = safeScenes.reduce((acc, s) => acc + Math.max(2, Number(s.durationSec) || 5), 0);
   let cursorFrame = 0;
 
   return (
-    <AbsoluteFill
-      style={{
-        background: bgGradient,
-        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      }}
-    >
-      {bgImageUrl && (
-        <AbsoluteFill style={{ overflow: 'hidden', opacity: 0.62 }}>
-          <Img
-            src={bgImageUrl}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', transform: `scale(${bgScale})` }}
-          />
-        </AbsoluteFill>
-      )}
-
-      <AmbientBokeh colors={bokehColors} count={12} />
-
+    <AbsoluteFill style={{ backgroundColor: '#050818' }}>
       {safeScenes.map((scene, idx) => {
         const ratio = Math.max(2, Number(scene.durationSec) || 5) / Math.max(1, totalSceneSec);
         const sceneFrames =
@@ -372,53 +265,19 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
 
         return (
           <Sequence key={idx} from={from} durationInFrames={sceneFrames}>
-            <SceneSlide
+            <StandardSceneTemplate
+              styleId={templateStyle}
               scene={scene}
-              themeColor={themeColor}
-              accentColor={accentColor}
-              fallbackProductUrl={productImageUrl}
-              hasBrandHeader={isBranded}
               index={idx}
               total={safeScenes.length}
+              sceneFrames={sceneFrames}
+              fps={fps}
+              themeColor={themeColor}
+              branding={branding}
             />
           </Sequence>
         );
       })}
-
-      <LightStreaksOverlay themeColor={accentColor} frame={frame} />
-
-      {branding?.name && (
-        <BrandHeaderCard
-          name={branding.name}
-          tagline={branding.tagline}
-          accentColor={accentColor}
-          lightMode={false}
-        />
-      )}
-
-      {/* Sleek Bottom Progress Line */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 54,
-          left: 72,
-          right: 72,
-          height: 6,
-          borderRadius: 999,
-          background: 'rgba(255,255,255,0.16)',
-          overflow: 'hidden',
-        }}
-      >
-        <div
-          style={{
-            width: `${progress * 100}%`,
-            height: '100%',
-            background: `linear-gradient(90deg, ${accentColor}, #ffffff)`,
-            borderRadius: 999,
-          }}
-        />
-      </div>
-
       {audioUrl ? <Audio src={audioUrl} /> : null}
     </AbsoluteFill>
   );

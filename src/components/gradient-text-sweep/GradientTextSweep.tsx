@@ -44,10 +44,10 @@ export const GradientTextSweep: React.FC<GradientTextSweepProps> = ({
   const sub = String(subline || "").toUpperCase();
 
   // Headline sizing relative to canvas; shrink slightly for long strings.
-  const baseFont = Math.round(height * 0.155);
+  const baseFont = Math.round(Math.min(width, height) * 0.145);
   const lenAdj = Math.min(1, 14 / Math.max(title.length, 1));
-  const fontSize = Math.round(baseFont * (0.7 + 0.3 * lenAdj));
-  const subFontSize = Math.round(fontSize * 0.2);
+  const fontSize = Math.round(baseFont * (0.55 + 0.45 * lenAdj));
+  const subFontSize = Math.round(Math.max(24, fontSize * 0.24));
 
   // Entrance: subtle scale-in + fade as the headline settles.
   const enter = spring({

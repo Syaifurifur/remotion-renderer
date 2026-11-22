@@ -71,8 +71,9 @@ export const NeonSign: React.FC<NeonSignProps> = ({
 
   const cx = width / 2;
   const cy = height * 0.42;
-  const sw = scale * 0.50;
-  const sh = scale * 0.20;
+  const sw = scale * 0.82;
+  const sh = scale * 0.24;
+  const neonFontSize = Math.min(scale * 0.095, (sw * 0.82) / Math.max(4, signText.length * 0.68));
 
   return (
     <AbsoluteFill style={{ backgroundColor }}>
@@ -102,33 +103,33 @@ export const NeonSign: React.FC<NeonSignProps> = ({
         />
 
         {/* Neon text glow (multi-layered) */}
-        <text x={cx} y={cy + sh * 0.2}
+        <text x={cx} y={cy + sh * 0.16}
           textAnchor="middle"
           fontFamily={FONT}
-          fontSize={scale * 0.10}
+          fontSize={neonFontSize}
           fontWeight={900}
-          letterSpacing={scale * 0.018}
+          letterSpacing={scale * 0.012}
           fill={glowColor}
           opacity={glowOpacity * 0.4}
           style={{ filter: `blur(${scale * 0.02}px)` }}
         >{signText}</text>
-        <text x={cx} y={cy + sh * 0.2}
+        <text x={cx} y={cy + sh * 0.16}
           textAnchor="middle"
           fontFamily={FONT}
-          fontSize={scale * 0.10}
+          fontSize={neonFontSize}
           fontWeight={900}
-          letterSpacing={scale * 0.018}
+          letterSpacing={scale * 0.012}
           fill={glowColor}
           opacity={glowOpacity * 0.3}
           style={{ filter: `blur(${scale * 0.008}px)` }}
         >{signText}</text>
         {/* Main neon text */}
-        <text x={cx} y={cy + sh * 0.2}
+        <text x={cx} y={cy + sh * 0.16}
           textAnchor="middle"
           fontFamily={FONT}
-          fontSize={scale * 0.10}
+          fontSize={neonFontSize}
           fontWeight={900}
-          letterSpacing={scale * 0.018}
+          letterSpacing={scale * 0.012}
           fill={neonColor}
           opacity={signOpacity}
         >{signText}</text>

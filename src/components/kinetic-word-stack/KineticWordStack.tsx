@@ -44,8 +44,9 @@ export const KineticWordStack: React.FC<KineticWordStackProps> = ({
   const lastIndex = count - 1;
 
   // Layout: vertically centered stack, sized relative to canvas.
-  const lineHeight = Math.round(height * 0.155);
-  const fontSize = Math.round(lineHeight * 0.74);
+  const lineHeight = Math.round(Math.min(width, height) * 0.155);
+  const maxLen = Math.max(...wordList.map((w) => w.length), 6);
+  const fontSize = Math.round(lineHeight * Math.min(0.74, 5.2 / maxLen));
   const stackHeight = lineHeight * count;
   const stackTop = (height - stackHeight) / 2;
 

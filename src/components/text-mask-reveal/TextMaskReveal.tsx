@@ -46,8 +46,9 @@ export const TextMaskReveal: React.FC<TextMaskRevealProps> = ({
   const count = lineList.length;
 
   // Vertically centered stack, sized relative to canvas.
-  const lineHeight = Math.round(height * 0.17);
-  const fontSize = Math.round(lineHeight * 0.66);
+  const lineHeight = Math.round(Math.min(width, height) * 0.16);
+  const maxLen = Math.max(...lineList.map((l) => l.length), 7);
+  const fontSize = Math.round(lineHeight * Math.min(0.66, 5.6 / maxLen));
   const stackHeight = lineHeight * count;
   const stackTop = (height - stackHeight) / 2;
 
