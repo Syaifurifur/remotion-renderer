@@ -4,6 +4,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { bundle } = require('@remotion/bundler');
 const { renderMedia, selectComposition } = require('@remotion/renderer');
+const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -80,6 +81,36 @@ function writeAndConvertAudio(jobId, audioBase64, audioMimeType) {
 
   const durationSec = Math.max(5, Math.ceil(parseFloat(probe) || 20));
   return { audioFile: mp3Path, durationSec };
+}
+
+async function generateEdgeTtsAudio(jobId, text) {
+  const cleanText = String(text || '').trim();
+  if (!cleanText) return { audioFile: null, durationSec: 20 };
+  const mp3Path = path.join(OUTPUT_DIR, `${jobId}.mp3`);
+  try {
+    const tts = new MsEdgeTTS();
+    await tts.setMetadata('id-ID-GadisNeural', OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+    const { audioStream } = tts.toStream(cleanText);
+    await new Promise((resolve, reject) => {
+      const ws = fs.createWriteStream(mp3Path);
+      audioStream.pipe(ws);
+      ws.on('finish', resolve);
+      ws.on('error', reject);
+      audioStream.on('error', reject);
+    });
+    const probe = execFileSync('ffprobe', [
+      '-v', 'error',
+      '-show_entries', 'format=duration',
+      '-of', 'default=noprint_wrappers=1:nokey=1',
+      mp3Path,
+    ]).toString().trim();
+    const durationSec = Math.max(5, Math.ceil(parseFloat(probe) || 20));
+    console.log(`[${jobId}] Edge TTS fallback generated -> ${mp3Path} (${durationSec}s)`);
+    return { audioFile: mp3Path, durationSec };
+  } catch (err) {
+    console.error(`[${jobId}] Edge TTS fallback error:`, err.message);
+    return { audioFile: null, durationSec: 20 };
+  }
 }
 
 app.get('/health', (_req, res) => {
@@ -165,7 +196,15 @@ app.post('/render', async (req, res) => {
   const bgImageMimeType = req.body.bgImageMimeType || 'image/png';
 
   try {
-    const { audioFile, durationSec } = writeAndConvertAudio(jobId, audioBase64, audioMimeType);
+    let { audioFile, durationSec } = writeAndConvertAudio(jobId, audioBase64, audioMimeType);
+    if (!audioFile) {
+      const fallbackText =
+        String(req.body.ttsText || '').trim() ||
+        scenes.map((s) => `${s.headline || ''}. ${s.subtext || ''}`).join(' ').trim();
+      if (fallbackText) {
+        ({ audioFile, durationSec } = await generateEdgeTtsAudio(jobId, fallbackText));
+      }
+    }
     const productImageUrl = writeImageFile(jobId, 'product', productImageBase64, productImageMimeType);
     const bgImageUrl = writeImageFile(jobId, 'bg', bgImageBase64, bgImageMimeType);
     const preparedScenes = scenes.map((scene, idx) => {
@@ -298,7 +337,15 @@ app.post('/render-ffmpeg', async (req, res) => {
   const productImageMimeType = req.body.productImageMimeType || 'image/jpeg';
 
   try {
-    const { audioFile, durationSec } = writeAndConvertAudio(jobId, audioBase64, audioMimeType);
+    let { audioFile, durationSec } = writeAndConvertAudio(jobId, audioBase64, audioMimeType);
+    if (!audioFile) {
+      const fallbackText =
+        String(req.body.ttsText || '').trim() ||
+        scenes.map((s) => `${s.headline || ''}. ${s.subtext || ''}`).join(' ').trim();
+      if (fallbackText) {
+        ({ audioFile, durationSec } = await generateEdgeTtsAudio(jobId, fallbackText));
+      }
+    }
     const fallbackImgPath = productImageBase64
       ? path.join(OUTPUT_DIR, `${jobId}_product.${String(productImageMimeType).includes('png') ? 'png' : 'jpg'}`)
       : null;
