@@ -1,6 +1,7 @@
 import React from 'react';
 import { Composition } from 'remotion';
 import { MotionGraphic, MotionGraphicProps } from './MotionGraphic';
+import { NarayyaComposition } from './NarayyaRoot';
 
 const defaultProps: MotionGraphicProps = {
   title: 'Promo Produk Affiliate',
@@ -36,5 +37,6 @@ export const RemotionRoot: React.FC = () => {
         fps: props.fps || 30,
       })}
     />
+    <NarayyaComposition />
   );
 };
