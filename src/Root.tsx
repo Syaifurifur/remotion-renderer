@@ -7,6 +7,7 @@ const defaultProps: MotionGraphicProps = {
   themeColor: '#0b63ce',
   audioUrl: '',
   productImageUrl: '',
+  bgImageUrl: '',
   fps: 30,
   durationInFrames: 900,
   scenes: [

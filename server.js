@@ -28,11 +28,11 @@ function getBundleLocation() {
   return bundleLocationPromise;
 }
 
-function writeProductImage(jobId, imageBase64, imageMimeType) {
+function writeImageFile(jobId, suffix, imageBase64, imageMimeType) {
   if (!imageBase64) return '';
   const mime = String(imageMimeType || 'image/jpeg').toLowerCase();
   const ext = mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : 'jpg';
-  const filename = `${jobId}_product.${ext}`;
+  const filename = `${jobId}_${suffix}.${ext}`;
   const outPath = path.join(OUTPUT_DIR, filename);
   fs.writeFileSync(outPath, Buffer.from(imageBase64, 'base64'));
   return `http://127.0.0.1:${PORT}/outputs/${filename}`;
@@ -103,16 +103,19 @@ app.post('/render', async (req, res) => {
   const audioMimeType = req.body.audioMimeType || 'audio/L16;rate=24000';
   const productImageBase64 = req.body.productImageBase64 || '';
   const productImageMimeType = req.body.productImageMimeType || 'image/jpeg';
+  const bgImageBase64 = req.body.bgImageBase64 || '';
+  const bgImageMimeType = req.body.bgImageMimeType || 'image/png';
 
   try {
     const { audioFile, durationSec } = writeAndConvertAudio(jobId, audioBase64, audioMimeType);
-    const productImageUrl = writeProductImage(jobId, productImageBase64, productImageMimeType);
+    const productImageUrl = writeImageFile(jobId, 'product', productImageBase64, productImageMimeType);
+    const bgImageUrl = writeImageFile(jobId, 'bg', bgImageBase64, bgImageMimeType);
     const fps = 30;
     const durationInFrames = Math.max(90, durationSec * fps);
     const audioUrl = audioFile ? `http://127.0.0.1:${PORT}/outputs/${jobId}.mp3` : '';
 
     const serveUrl = await getBundleLocation();
-    const inputProps = { title, themeColor, audioUrl, productImageUrl, fps, durationInFrames, scenes };
+    const inputProps = { title, themeColor, audioUrl, productImageUrl, bgImageUrl, fps, durationInFrames, scenes };
 
     const composition = await selectComposition({
       serveUrl,

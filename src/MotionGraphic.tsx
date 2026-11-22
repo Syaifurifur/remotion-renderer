@@ -23,6 +23,7 @@ export interface MotionGraphicProps {
   themeColor: string;
   audioUrl?: string;
   productImageUrl?: string;
+  bgImageUrl?: string;
   fps: number;
   durationInFrames: number;
   scenes: SceneItem[];
@@ -228,12 +229,17 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
   themeColor = '#0b63ce',
   audioUrl,
   productImageUrl,
+  bgImageUrl,
   fps = 30,
   durationInFrames,
   scenes = [],
 }) => {
   const frame = useCurrentFrame();
   const progress = Math.min(1, frame / Math.max(1, durationInFrames - 1));
+  const bgScale = interpolate(frame, [0, Math.max(1, durationInFrames)], [1.0, 1.12], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
 
   // Continuous 3D-feel luxury commercial product motion across the entire video
   const floatY = Math.sin(frame / 22) * 18;
@@ -259,6 +265,19 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
         fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
     >
+      {bgImageUrl && (
+        <AbsoluteFill style={{ overflow: 'hidden', opacity: 0.58 }}>
+          <Img
+            src={bgImageUrl}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              transform: `scale(${bgScale})`,
+            }}
+          />
+        </AbsoluteFill>
+      )}
       <LightStreaksAndMist themeColor={themeColor} frame={frame} />
 
       {/* Center Hero Product Showcase (55-60% frame height, frameless floating luxury feel) */}
