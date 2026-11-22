@@ -83,6 +83,36 @@ function writeAndConvertAudio(jobId, audioBase64, audioMimeType) {
   return { audioFile: mp3Path, durationSec };
 }
 
+function ensureAmbientBgmUrl() {
+  const bgmFilename = 'lofi_ambient.mp3';
+  const bgmPath = path.join(ASSETS_DIR, bgmFilename);
+  if (!fs.existsSync(bgmPath)) {
+    try {
+      // Synthesize a soft warm Lo-Fi/Ambient pad chord (C4-E4-G4-B4-D5) using ffmpeg
+      execFileSync('ffmpeg', [
+        '-y',
+        '-f', 'lavfi',
+        '-i', 'sine=frequency=261.63:duration=12,volume=0.18',
+        '-f', 'lavfi',
+        '-i', 'sine=frequency=329.63:duration=12,volume=0.14',
+        '-f', 'lavfi',
+        '-i', 'sine=frequency=392.00:duration=12,volume=0.12',
+        '-f', 'lavfi',
+        '-i', 'sine=frequency=493.88:duration=12,volume=0.09',
+        '-filter_complex', 'amix=inputs=4:duration=first,lowpass=f=900,afade=t=in:st=0:d=1.5,afade=t=out:st=10.5:d=1.5',
+        '-codec:a', 'libmp3lame',
+        '-b:a', '128k',
+        bgmPath,
+      ]);
+      console.log(`Generated ambient lo-fi BGM -> ${bgmPath}`);
+    } catch (err) {
+      console.warn('Could not synthesize ambient BGM:', err.message);
+      return '';
+    }
+  }
+  return `http://127.0.0.1:${PORT}/outputs/assets/${bgmFilename}`;
+}
+
 async function generateEdgeTtsAudio(jobId, text) {
   const cleanText = String(text || '').trim();
   if (!cleanText) return { audioFile: null, durationSec: 20 };
@@ -120,6 +150,7 @@ app.get('/health', (_req, res) => {
 app.get('/templates', (_req, res) => {
   res.json({
     presets: [
+      { id: 'clean-ui-motion', label: '🌿 Clean UI Motion (H2BY Grid)', compositionId: 'MotionGraphic' },
       { id: 'editorial-motion', label: '✨ Editorial Motion (Paper Grid)', compositionId: 'MotionGraphic' },
       { id: 'social-reel', label: '📱 Social Reel Frame', compositionId: 'MotionGraphic' },
       { id: 'kinetic-word-stack', label: '⚡ Kinetic Word Stack', compositionId: 'MotionGraphic' },
@@ -224,12 +255,13 @@ app.post('/render', async (req, res) => {
     const fps = 24;
     const durationInFrames = Math.max(72, durationSec * fps);
     const audioUrl = audioFile ? `http://127.0.0.1:${PORT}/outputs/${jobId}.mp3` : '';
+    const bgmUrl = templateStyle === 'clean-ui-motion' ? ensureAmbientBgmUrl() : '';
     const browserExecutable = fs.existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : undefined;
 
     console.log(`[${jobId}] Starting render (${compositionId}/${templateStyle}, ${durationSec}s, ${durationInFrames} frames, scenes=${preparedScenes.length}, browser=${browserExecutable || 'default'})`);
     const serveUrl = await getBundleLocation();
     const inputProps = compositionId === 'MotionGraphic'
-      ? { title, themeColor, audioUrl, productImageUrl, bgImageUrl, branding, templateStyle, fps, durationInFrames, scenes: preparedScenes }
+      ? { title, themeColor, audioUrl, bgmUrl, productImageUrl, bgImageUrl, branding, templateStyle, fps, durationInFrames, scenes: preparedScenes }
       : { ...(req.body.props || {}), title, headline: title };
 
     const composition = await selectComposition({

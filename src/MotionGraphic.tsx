@@ -13,6 +13,7 @@ import { BeautyIcon, resolveIconCategory } from './BeautyIcons';
 import { BarChartAnim } from './components/bar-chart-anim/BarChartAnim';
 import { BounceInHeadline } from './components/bounce-in-headline/BounceInHeadline';
 import { ChapterTitle } from './components/chapter-title/ChapterTitle';
+import { CleanUiMotion } from './components/clean-ui-motion/CleanUiMotion';
 import { EditorialMotion } from './components/editorial-motion/EditorialMotion';
 import { EndCard } from './components/end-card/EndCard';
 import { GlitchText } from './components/glitch-text/GlitchText';
@@ -46,6 +47,7 @@ export interface MotionGraphicProps {
   title: string;
   themeColor: string;
   audioUrl?: string;
+  bgmUrl?: string;
   productImageUrl?: string;
   bgImageUrl?: string;
   branding?: BrandingConfig;
@@ -619,6 +621,7 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
   title,
   themeColor = '#22d3ee',
   audioUrl,
+  bgmUrl,
   productImageUrl,
   bgImageUrl,
   branding,
@@ -627,6 +630,13 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
   durationInFrames,
   scenes = [],
 }) => {
+  const frame = useCurrentFrame();
+  const outroLiftStart = Math.max(0, durationInFrames - fps * 4);
+  const bgmVolume = interpolate(frame, [outroLiftStart, durationInFrames], [0.12, 0.24], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
   const safeScenes = scenes.length
     ? scenes
     : [
@@ -637,6 +647,24 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
           durationSec: 5,
         },
       ];
+
+  // If templateStyle is 'clean-ui-motion', render the H2BY.STUDIO Clean UI Motion skill template + ducked ambient BGM
+  if (templateStyle === 'clean-ui-motion') {
+    return (
+      <AbsoluteFill>
+        <CleanUiMotion
+          title={title}
+          brandName={branding?.name || 'NARAYYA BEAUTY'}
+          tagline={branding?.tagline}
+          bgImageUrl={bgImageUrl}
+          productImageUrl={productImageUrl}
+          scenes={safeScenes}
+        />
+        {bgmUrl ? <Audio src={bgmUrl} volume={bgmVolume} loop /> : null}
+        {audioUrl ? <Audio src={audioUrl} /> : null}
+      </AbsoluteFill>
+    );
+  }
 
   // If templateStyle is 'editorial-motion', render the Warm Paper Editorial Motion skill template
   if (templateStyle === 'editorial-motion') {
