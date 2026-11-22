@@ -53,22 +53,20 @@ const LightStreaksAndMist: React.FC<{ themeColor: string; frame: number }> = ({
           height: 820,
           transform: `translate(-50%, 0) scale(${spotlightScale})`,
           borderRadius: '50%',
-          background: `radial-gradient(circle, ${themeColor}55 0%, rgba(255,255,255,0.10) 35%, transparent 70%)`,
-          filter: 'blur(40px)',
+          background: `radial-gradient(circle, ${themeColor}44 0%, rgba(255,255,255,0.08) 38%, transparent 70%)`,
         }}
       />
 
-      {/* Drifting volumetric mist layers */}
+      {/* Drifting volumetric mist layers (pure radial gradients for fast CPU rendering) */}
       <div
         style={{
           position: 'absolute',
           top: 460 + mist1Y,
           left: -140 + mist1X,
-          width: 760,
-          height: 460,
+          width: 820,
+          height: 520,
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(226,232,240,0.16) 0%, transparent 70%)',
-          filter: 'blur(75px)',
+          background: 'radial-gradient(circle, rgba(226,232,240,0.14) 0%, rgba(226,232,240,0.04) 45%, transparent 72%)',
         }}
       />
       <div
@@ -76,11 +74,10 @@ const LightStreaksAndMist: React.FC<{ themeColor: string; frame: number }> = ({
           position: 'absolute',
           bottom: 340 + mist2Y,
           right: -160 + mist2X,
-          width: 800,
-          height: 500,
+          width: 860,
+          height: 560,
           borderRadius: '50%',
-          background: `radial-gradient(circle, ${themeColor}33 0%, rgba(255,255,255,0.10) 40%, transparent 72%)`,
-          filter: 'blur(85px)',
+          background: `radial-gradient(circle, ${themeColor}2a 0%, rgba(255,255,255,0.07) 42%, transparent 72%)`,
         }}
       />
 
@@ -156,10 +153,9 @@ const SceneOverlay: React.FC<{
             display: 'inline-flex',
             alignItems: 'center',
             gap: 12,
-            background: 'rgba(15, 23, 42, 0.55)',
+            background: 'rgba(15, 23, 42, 0.78)',
             border: `1.5px solid ${themeColor || '#38bdf8'}`,
             boxShadow: `0 10px 30px ${themeColor}44`,
-            backdropFilter: 'blur(14px)',
             color: '#f8fafc',
             fontSize: 26,
             fontWeight: 800,

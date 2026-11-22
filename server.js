@@ -110,10 +110,12 @@ app.post('/render', async (req, res) => {
     const { audioFile, durationSec } = writeAndConvertAudio(jobId, audioBase64, audioMimeType);
     const productImageUrl = writeImageFile(jobId, 'product', productImageBase64, productImageMimeType);
     const bgImageUrl = writeImageFile(jobId, 'bg', bgImageBase64, bgImageMimeType);
-    const fps = 30;
-    const durationInFrames = Math.max(90, durationSec * fps);
+    const fps = 24;
+    const durationInFrames = Math.max(72, durationSec * fps);
     const audioUrl = audioFile ? `http://127.0.0.1:${PORT}/outputs/${jobId}.mp3` : '';
+    const browserExecutable = fs.existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : undefined;
 
+    console.log(`[${jobId}] Starting render (${durationSec}s, ${durationInFrames} frames, browser=${browserExecutable || 'default'})`);
     const serveUrl = await getBundleLocation();
     const inputProps = { title, themeColor, audioUrl, productImageUrl, bgImageUrl, fps, durationInFrames, scenes };
 
@@ -121,20 +123,32 @@ app.post('/render', async (req, res) => {
       serveUrl,
       id: 'MotionGraphic',
       inputProps,
+      browserExecutable,
     });
 
     const outMp4 = path.join(OUTPUT_DIR, `${jobId}.mp4`);
+    let lastPct = -1;
     await renderMedia({
       composition,
       serveUrl,
       codec: 'h264',
       outputLocation: outMp4,
       inputProps,
-      concurrency: 1,
+      browserExecutable,
+      concurrency: 2,
       chromiumOptions: {
         headless: 'new',
+        gl: 'swiftshader',
+      },
+      onProgress: ({ progress }) => {
+        const pct = Math.floor(progress * 5) * 20;
+        if (pct > lastPct) {
+          lastPct = pct;
+          console.log(`[${jobId}] Render progress: ${pct}%`);
+        }
       },
     });
+    console.log(`[${jobId}] Render complete -> ${outMp4}`);
 
     const videoUrl = `${PUBLIC_BASE_URL}/outputs/${jobId}.mp4`;
     const meta = { ok: true, jobId, title, caption, videoUrl, durationSec };
