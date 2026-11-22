@@ -28,122 +28,192 @@ export interface MotionGraphicProps {
   scenes: SceneItem[];
 }
 
-const SceneSlide: React.FC<{
+const LightStreaksAndMist: React.FC<{ themeColor: string; frame: number }> = ({
+  themeColor,
+  frame,
+}) => {
+  const mist1X = Math.sin(frame / 42) * 90;
+  const mist1Y = Math.cos(frame / 55) * 45;
+  const mist2X = Math.cos(frame / 36) * 110;
+  const mist2Y = Math.sin(frame / 48) * 50;
+  const dashOffset1 = -(frame * 10) % 1600;
+  const dashOffset2 = (frame * 7) % 1600;
+  const spotlightScale = 1 + Math.sin(frame / 30) * 0.08;
+
+  return (
+    <AbsoluteFill style={{ pointerEvents: 'none', overflow: 'hidden' }}>
+      {/* Studio radial spotlight behind hero product */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '22%',
+          left: '50%',
+          width: 820,
+          height: 820,
+          transform: `translate(-50%, 0) scale(${spotlightScale})`,
+          borderRadius: '50%',
+          background: `radial-gradient(circle, ${themeColor}55 0%, rgba(255,255,255,0.10) 35%, transparent 70%)`,
+          filter: 'blur(40px)',
+        }}
+      />
+
+      {/* Drifting volumetric mist layers */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 460 + mist1Y,
+          left: -140 + mist1X,
+          width: 760,
+          height: 460,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(226,232,240,0.16) 0%, transparent 70%)',
+          filter: 'blur(75px)',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 340 + mist2Y,
+          right: -160 + mist2X,
+          width: 800,
+          height: 500,
+          borderRadius: '50%',
+          background: `radial-gradient(circle, ${themeColor}33 0%, rgba(255,255,255,0.10) 40%, transparent 72%)`,
+          filter: 'blur(85px)',
+        }}
+      />
+
+      {/* Sweeping silver/white light-streak curves */}
+      <svg
+        viewBox="0 0 1080 1920"
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.65 }}
+      >
+        <defs>
+          <linearGradient id="streakA" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="rgba(255,255,255,0)" />
+            <stop offset="50%" stopColor="rgba(255,255,255,0.85)" />
+            <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+          </linearGradient>
+        </defs>
+        <path
+          d="M -120 1280 C 260 940, 780 1120, 1220 520"
+          fill="none"
+          stroke="url(#streakA)"
+          strokeWidth="3.5"
+          strokeDasharray="420 1180"
+          strokeDashoffset={dashOffset1}
+        />
+        <path
+          d="M -80 680 C 340 1060, 720 620, 1180 1180"
+          fill="none"
+          stroke="rgba(255,255,255,0.45)"
+          strokeWidth="2"
+          strokeDasharray="340 1260"
+          strokeDashoffset={dashOffset2}
+        />
+      </svg>
+    </AbsoluteFill>
+  );
+};
+
+const SceneOverlay: React.FC<{
   scene: SceneItem;
   themeColor: string;
-  productImageUrl?: string;
   index: number;
   total: number;
-}> = ({ scene, themeColor, productImageUrl, index, total }) => {
+}> = ({ scene, themeColor, index, total }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
 
-  const enter = spring({ frame, fps, config: { damping: 14, stiffness: 120 } });
+  const enter = spring({ frame, fps, config: { damping: 15, stiffness: 140 } });
   const fadeOut = interpolate(
     frame,
-    [Math.max(0, durationInFrames - 10), durationInFrames],
+    [Math.max(0, durationInFrames - 8), durationInFrames],
     [1, 0],
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
   );
 
-  const yOffset = interpolate(enter, [0, 1], [54, 0]);
-  const scale = interpolate(enter, [0, 1], [0.94, 1]);
-  const productZoom = interpolate(frame, [0, Math.max(1, durationInFrames)], [1, 1.08]);
-  const showProduct = Boolean(productImageUrl) && scene.showProduct !== false;
+  const yIn = interpolate(enter, [0, 1], [36, 0]);
+  const badgeScale = interpolate(enter, [0, 1], [0.88, 1]);
 
   return (
-    <AbsoluteFill
-      style={{
-        justifyContent: 'center',
-        padding: '150px 76px 140px',
-        opacity: fadeOut,
-      }}
-    >
-      {showProduct && (
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            marginBottom: 40,
-            transform: `translateY(${yOffset * 0.6}px) scale(${scale})`,
-          }}
-        >
-          <div
-            style={{
-              width: 640,
-              height: 640,
-              borderRadius: 48,
-              overflow: 'hidden',
-              border: '4px solid rgba(255,255,255,0.28)',
-              boxShadow: `0 28px 80px ${themeColor}66`,
-              background: '#ffffff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Img
-              src={productImageUrl}
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                transform: `scale(${productZoom})`,
-              }}
-            />
-          </div>
-        </div>
-      )}
-
+    <AbsoluteFill style={{ opacity: fadeOut, pointerEvents: 'none' }}>
+      {/* Top Safe Zone: Sleek Pill Badge */}
       <div
         style={{
-          transform: `translateY(${yOffset}px) scale(${scale})`,
-          background: 'rgba(255, 255, 255, 0.09)',
-          border: '2px solid rgba(255, 255, 255, 0.18)',
-          borderRadius: 40,
-          padding: showProduct ? '48px 48px' : '64px 56px',
-          backdropFilter: 'blur(16px)',
-          boxShadow: '0 30px 90px rgba(0, 0, 0, 0.35)',
+          position: 'absolute',
+          top: 132,
+          left: 72,
+          right: 72,
+          display: 'flex',
+          justifyContent: 'center',
+          transform: `scale(${badgeScale})`,
         }}
       >
         <div
           style={{
-            display: 'inline-block',
-            background: themeColor || '#0b63ce',
-            color: '#ffffff',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 12,
+            background: 'rgba(15, 23, 42, 0.55)',
+            border: `1.5px solid ${themeColor || '#38bdf8'}`,
+            boxShadow: `0 10px 30px ${themeColor}44`,
+            backdropFilter: 'blur(14px)',
+            color: '#f8fafc',
             fontSize: 26,
             fontWeight: 800,
-            letterSpacing: '0.12em',
-            padding: '12px 26px',
+            letterSpacing: '0.14em',
+            padding: '12px 30px',
             borderRadius: 999,
             textTransform: 'uppercase',
-            marginBottom: 26,
           }}
         >
+          <span
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: '50%',
+              background: themeColor || '#38bdf8',
+              boxShadow: `0 0 14px ${themeColor || '#38bdf8'}`,
+            }}
+          />
           {scene.badge || `POIN ${index + 1}/${total}`}
         </div>
+      </div>
 
+      {/* Bottom Safe Zone: Frameless High-Contrast Kinetic Typography */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 125,
+          left: 68,
+          right: 68,
+          textAlign: 'center',
+          transform: `translateY(${yIn}px)`,
+        }}
+      >
         <h1
           style={{
             color: '#ffffff',
-            fontSize: showProduct ? 60 : 72,
+            fontSize: 64,
             fontWeight: 900,
-            lineHeight: 1.14,
+            lineHeight: 1.12,
             margin: 0,
-            letterSpacing: '-0.02em',
+            letterSpacing: '-0.025em',
+            textShadow: '0 8px 32px rgba(0,0,0,0.85)',
           }}
         >
           {scene.headline}
         </h1>
-
         <p
           style={{
-            color: '#cbd5e1',
-            fontSize: showProduct ? 34 : 40,
+            color: '#e2e8f0',
+            fontSize: 34,
             fontWeight: 500,
-            lineHeight: 1.45,
-            marginTop: 24,
+            lineHeight: 1.4,
+            marginTop: 18,
             marginBottom: 0,
+            textShadow: '0 4px 20px rgba(0,0,0,0.85)',
           }}
         >
           {scene.subtext}
@@ -164,7 +234,16 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const progress = Math.min(1, frame / Math.max(1, durationInFrames - 1));
-  const floatY = Math.sin(frame / 25) * 28;
+
+  // Continuous 3D-feel luxury commercial product motion across the entire video
+  const floatY = Math.sin(frame / 22) * 18;
+  const tiltDeg = Math.sin(frame / 45) * 6.5 - 1.5;
+  const heroZoom = interpolate(
+    frame,
+    [0, Math.max(1, durationInFrames * 0.5), Math.max(2, durationInFrames)],
+    [0.98, 1.1, 1.04],
+    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+  );
 
   const safeScenes = scenes.length
     ? scenes
@@ -176,54 +255,60 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
   return (
     <AbsoluteFill
       style={{
-        background: `radial-gradient(circle at 20% 20%, ${themeColor}55 0%, #071d43 52%, #030b1c 100%)`,
+        background: `linear-gradient(165deg, #10151c 0%, #1c2430 48%, #090d14 100%)`,
         fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
     >
+      <LightStreaksAndMist themeColor={themeColor} frame={frame} />
+
+      {/* Center Hero Product Showcase (55-60% frame height, frameless floating luxury feel) */}
+      {productImageUrl && (
+        <AbsoluteFill
+          style={{
+            justifyContent: 'center',
+            alignItems: 'center',
+            paddingBottom: 90,
+          }}
+        >
+          <div
+            style={{
+              width: 720,
+              height: 920,
+              borderRadius: 56,
+              overflow: 'hidden',
+              transform: `translateY(${floatY}px) rotate(${tiltDeg}deg) scale(${heroZoom})`,
+              boxShadow: `0 40px 120px rgba(0, 0, 0, 0.78), 0 0 80px ${themeColor}40`,
+              border: '1.5px solid rgba(255,255,255,0.22)',
+              WebkitMaskImage:
+                'radial-gradient(ellipse 92% 92% at 50% 50%, #000 72%, rgba(0,0,0,0.4) 92%, transparent 100%)',
+              maskImage:
+                'radial-gradient(ellipse 92% 92% at 50% 50%, #000 72%, rgba(0,0,0,0.4) 92%, transparent 100%)',
+            }}
+          >
+            <Img
+              src={productImageUrl}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+              }}
+            />
+          </div>
+        </AbsoluteFill>
+      )}
+
+      {/* Bottom dark gradient scrim for crisp text contrast */}
       <div
         style={{
           position: 'absolute',
-          top: 180 + floatY,
-          right: -120,
-          width: 560,
-          height: 560,
-          borderRadius: '50%',
-          background: themeColor,
-          opacity: 0.22,
-          filter: 'blur(90px)',
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 220 - floatY,
-          left: -140,
-          width: 500,
-          height: 500,
-          borderRadius: '50%',
-          background: '#38bdf8',
-          opacity: 0.14,
-          filter: 'blur(90px)',
+          inset: 0,
+          background:
+            'linear-gradient(to bottom, rgba(5,8,14,0.55) 0%, rgba(5,8,14,0) 22%, rgba(5,8,14,0) 58%, rgba(5,8,14,0.88) 84%, rgba(5,8,14,0.96) 100%)',
+          pointerEvents: 'none',
         }}
       />
 
-      <div
-        style={{
-          position: 'absolute',
-          top: 76,
-          left: 76,
-          right: 76,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <span style={{ color: '#e2e8f0', fontSize: 28, fontWeight: 800, letterSpacing: '0.06em' }}>
-          REKOMENDASI PRODUK
-        </span>
-        <span style={{ color: '#94a3b8', fontSize: 24, fontWeight: 600 }}>PROMO PILIHAN</span>
-      </div>
-
+      {/* Dynamic Scene Overlays */}
       {safeScenes.map((scene, idx) => {
         const ratio = Math.max(2, Number(scene.durationSec) || 5) / Math.max(1, totalSceneSec);
         const sceneFrames =
@@ -235,10 +320,9 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
 
         return (
           <Sequence key={idx} from={from} durationInFrames={sceneFrames}>
-            <SceneSlide
+            <SceneOverlay
               scene={scene}
               themeColor={themeColor}
-              productImageUrl={productImageUrl}
               index={idx}
               total={safeScenes.length}
             />
@@ -246,15 +330,16 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
         );
       })}
 
+      {/* Sleek Bottom Progress Line */}
       <div
         style={{
           position: 'absolute',
-          bottom: 84,
-          left: 76,
-          right: 76,
-          height: 12,
+          bottom: 58,
+          left: 72,
+          right: 72,
+          height: 6,
           borderRadius: 999,
-          background: 'rgba(255,255,255,0.16)',
+          background: 'rgba(255,255,255,0.14)',
           overflow: 'hidden',
         }}
       >
@@ -262,7 +347,7 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
           style={{
             width: `${progress * 100}%`,
             height: '100%',
-            background: '#38bdf8',
+            background: `linear-gradient(90deg, ${themeColor || '#38bdf8'}, #ffffff)`,
             borderRadius: 999,
           }}
         />
