@@ -118,49 +118,54 @@ const SceneSlide: React.FC<{
   }
   imgY = Math.sin(frame / 20) * 8;
 
-  const activeImage = scene.imageUrl || fallbackProductUrl;
-  const isFullSceneImage = Boolean(scene.imageUrl);
+  const activeBgImage = scene.imageUrl;
+  const showFloatingProduct = Boolean(fallbackProductUrl) && scene.showProduct !== false;
+  const prodFloatY = Math.sin(frame / 18) * 14;
+  const prodTilt = Math.sin(frame / 36) * 4.5 - 1;
+  const prodScale = interpolate(progress, [0, 1], [0.97, 1.05]);
 
   const yIn = interpolate(enter, [0, 1], [38, 0]);
   const badgeScale = interpolate(enter, [0, 1], [0.88, 1]);
 
   return (
     <AbsoluteFill style={{ opacity: sceneOpacity }}>
-      {/* Scene Visual */}
-      {activeImage &&
-        (isFullSceneImage ? (
-          <AbsoluteFill style={{ overflow: 'hidden' }}>
-            <Img
-              src={activeImage}
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                transform: `translate(${imgX}px, ${imgY}px) scale(${imgScale})`,
-              }}
-            />
-          </AbsoluteFill>
-        ) : (
-          <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center', paddingBottom: 90 }}>
-            <div
-              style={{
-                width: 720,
-                height: 920,
-                borderRadius: 56,
-                overflow: 'hidden',
-                transform: `translate(${imgX}px, ${imgY}px) scale(${imgScale})`,
-                boxShadow: `0 40px 120px rgba(0, 0, 0, 0.78), 0 0 80px ${themeColor}40`,
-                border: '1.5px solid rgba(255,255,255,0.22)',
-                WebkitMaskImage:
-                  'radial-gradient(ellipse 92% 92% at 50% 50%, #000 72%, rgba(0,0,0,0.4) 92%, transparent 100%)',
-                maskImage:
-                  'radial-gradient(ellipse 92% 92% at 50% 50%, #000 72%, rgba(0,0,0,0.4) 92%, transparent 100%)',
-              }}
-            >
-              <Img src={activeImage} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            </div>
-          </AbsoluteFill>
-        ))}
+      {/* Scene AI Background Visual */}
+      {activeBgImage && (
+        <AbsoluteFill style={{ overflow: 'hidden', opacity: 0.72 }}>
+          <Img
+            src={activeBgImage}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              transform: `translate(${imgX}px, ${imgY}px) scale(${imgScale})`,
+            }}
+          />
+        </AbsoluteFill>
+      )}
+
+      {/* Floating Hero Product Photo (always preserves 100% real product packaging) */}
+      {showFloatingProduct && (
+        <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center', paddingBottom: 110 }}>
+          <div
+            style={{
+              width: 660,
+              height: 840,
+              borderRadius: 52,
+              overflow: 'hidden',
+              transform: `translateY(${prodFloatY}px) rotate(${prodTilt}deg) scale(${prodScale})`,
+              boxShadow: `0 40px 120px rgba(0, 0, 0, 0.85), 0 0 80px ${themeColor}44`,
+              border: '1.5px solid rgba(255,255,255,0.26)',
+              WebkitMaskImage:
+                'radial-gradient(ellipse 92% 92% at 50% 50%, #000 72%, rgba(0,0,0,0.4) 92%, transparent 100%)',
+              maskImage:
+                'radial-gradient(ellipse 92% 92% at 50% 50%, #000 72%, rgba(0,0,0,0.4) 92%, transparent 100%)',
+            }}
+          >
+            <Img src={fallbackProductUrl!} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+        </AbsoluteFill>
+      )}
 
       {/* Top/Bottom Contrast Scrim */}
       <div
