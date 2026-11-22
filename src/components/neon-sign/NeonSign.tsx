@@ -142,10 +142,11 @@ export const NeonSign: React.FC<NeonSignProps> = ({
       </svg>
 
       <div style={{
-        position: "absolute", bottom: height * 0.1,
-        left: 0, right: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: scale * 0.01,
+        position: "absolute", top: height * 0.56,
+        left: 60, right: 60, display: "flex", flexDirection: "column", alignItems: "center", gap: scale * 0.01,
+        textAlign: "center",
       }}>
-        <div style={{ fontFamily: FONT, fontSize: scale * 0.034, fontWeight: 500, color: subColor, opacity: subIn }}>
+        <div style={{ fontFamily: FONT, fontSize: scale * 0.034, fontWeight: 600, color: subColor, opacity: subIn, lineHeight: 1.35 }}>
           {subText}
         </div>
       </div>

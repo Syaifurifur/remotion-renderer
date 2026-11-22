@@ -3,6 +3,7 @@
 import React from "react";
 import {
   AbsoluteFill,
+  Img,
   Sequence,
   Easing,
   interpolate,
@@ -10,6 +11,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
+import { BeautyIcon, resolveIconCategory } from "../../BeautyIcons";
 
 /**
  * Social Reel — generic short-form social video player promo
@@ -33,6 +35,15 @@ export const DURATION_FRAMES = 150;
 
 const SANS = '-apple-system, "Segoe UI", Roboto, sans-serif';
 
+export type SocialReelScene = {
+  headline: string;
+  subtext: string;
+  badge?: string;
+  icon?: string;
+  imageUrl?: string;
+  durationSec?: number;
+};
+
 export type SocialReelProps = {
   brandName: string;
   handle: string;
@@ -47,6 +58,8 @@ export type SocialReelProps = {
   bgTo: string;
   caption: string;
   likeCount: string;
+  bgImageUrl?: string;
+  scenes?: SocialReelScene[];
 };
 
 export const defaultSocialReelProps: SocialReelProps = {
@@ -356,6 +369,16 @@ const PlayerBody: React.FC<SocialReelProps> = (p) => {
 
   // Scene windows scaled to totalFrames (25-unit timeline across 4 scenes)
   const S = (sec: number) => Math.round((sec / 25) * totalFrames);
+
+  const hasSyncedScenes = Array.isArray(p.scenes) && p.scenes.length > 0;
+  const totalWeight = hasSyncedScenes
+    ? p.scenes!.reduce(
+        (acc, sc) => acc + Math.max(15, `${sc.headline || ""} ${sc.subtext || ""}`.trim().length),
+        0
+      )
+    : 1;
+  let cursor = 0;
+
   return (
     <AbsoluteFill style={{ background: p.bgFrom, overflow: "hidden" }}>
       {/* backdrop gradient with Ken-Burns zoom */}
@@ -366,11 +389,24 @@ const PlayerBody: React.FC<SocialReelProps> = (p) => {
           transformOrigin: "center",
         }}
       />
+      {p.bgImageUrl ? (
+        <AbsoluteFill style={{ opacity: 0.42, overflow: "hidden" }}>
+          <Img
+            src={p.bgImageUrl}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              transform: `scale(${kb})`,
+            }}
+          />
+        </AbsoluteFill>
+      ) : null}
       {/* soft vignette for legibility */}
       <AbsoluteFill
         style={{
           background:
-            "radial-gradient(120% 80% at 50% 35%, rgba(0,0,0,0) 40%, rgba(0,0,0,0.45) 100%)",
+            "radial-gradient(120% 80% at 50% 35%, rgba(0,0,0,0.2) 30%, rgba(0,0,0,0.72) 100%)",
         }}
       />
 
@@ -378,7 +414,192 @@ const PlayerBody: React.FC<SocialReelProps> = (p) => {
       <ActionRail accent={p.accentColor} likeCount={p.likeCount} frame={frame} />
       <BottomChrome caption={p.caption} accent={p.accentColor} progress={progress} />
 
-      {/* --- Scene 1: catch copy + accent wipe (0-1.6s) --- */}
+      {hasSyncedScenes ? (
+        p.scenes!.map((sc, idx) => {
+          const weight = Math.max(15, `${sc.headline || ""} ${sc.subtext || ""}`.trim().length);
+          const dur =
+            idx === p.scenes!.length - 1
+              ? Math.max(18, totalFrames - cursor)
+              : Math.max(18, Math.round((weight / totalWeight) * totalFrames));
+          const from = cursor;
+          cursor += dur;
+          const iconType = resolveIconCategory(sc.icon, sc.badge, sc.headline);
+          const pct = Math.round(((idx + 1) / p.scenes!.length) * 100);
+          const visualImg = sc.imageUrl || p.bgImageUrl;
+
+          return (
+            <Sequence key={idx} from={from} durationInFrames={dur} layout="none">
+              <AbsoluteFill
+                style={{
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "135px 86px 145px 34px",
+                }}
+              >
+                <FadeIn delay={2} duration={14} direction="up">
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 16,
+                      width: "100%",
+                    }}
+                  >
+                    {/* Icon + Scene Badge + Visual Preview Row */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        background: "rgba(15, 23, 42, 0.78)",
+                        border: `1.5px solid ${p.accentColor}`,
+                        borderRadius: 999,
+                        padding: "8px 18px",
+                      }}
+                    >
+                      <BeautyIcon
+                        type={iconType}
+                        primaryColor={p.accentColor}
+                        accentColor="#ffffff"
+                        size={26}
+                      />
+                      <span
+                        style={{
+                          fontSize: 15,
+                          fontWeight: 800,
+                          color: "#fff",
+                          letterSpacing: "0.1em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {sc.badge || `POIN ${idx + 1}/${p.scenes!.length}`}
+                      </span>
+                    </div>
+
+                    {visualImg ? (
+                      <div
+                        style={{
+                          width: 170,
+                          height: 170,
+                          borderRadius: 24,
+                          overflow: "hidden",
+                          border: "2px solid rgba(255,255,255,0.35)",
+                          boxShadow: "0 14px 36px rgba(0,0,0,0.45)",
+                        }}
+                      >
+                        <Img
+                          src={visualImg}
+                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        />
+                      </div>
+                    ) : null}
+
+                    <AccentLine color={p.accentColor} delay={4} width={96} />
+
+                    {/* Synchronized Headline */}
+                    <div
+                      style={{
+                        fontSize: 38,
+                        fontWeight: 800,
+                        color: "#fff",
+                        fontFamily: SANS,
+                        textAlign: "center",
+                        lineHeight: 1.18,
+                        textShadow: "0 4px 18px rgba(0,0,0,0.65)",
+                      }}
+                    >
+                      {sc.headline}
+                    </div>
+
+                    {/* Synchronized Subtext + Infographic Card */}
+                    <div
+                      style={{
+                        padding: "16px 20px",
+                        background: "rgba(10, 14, 26, 0.76)",
+                        borderRadius: 18,
+                        border: "1px solid rgba(255,255,255,0.18)",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: 10,
+                        width: "100%",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 21,
+                          fontWeight: 500,
+                          color: "#f1f5f9",
+                          fontFamily: SANS,
+                          lineHeight: 1.4,
+                          textAlign: "center",
+                        }}
+                      >
+                        {sc.subtext}
+                      </div>
+
+                      {/* Mini Infographic Metric Bar */}
+                      <div
+                        style={{
+                          width: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 10,
+                          marginTop: 4,
+                          paddingTop: 8,
+                          borderTop: "1px solid rgba(255,255,255,0.12)",
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 700,
+                            color: p.accentColor,
+                            letterSpacing: "0.06em",
+                          }}
+                        >
+                          INFOGRAPHIC • STEP {idx + 1}/{p.scenes!.length}
+                        </span>
+                        <div
+                          style={{
+                            flex: 1,
+                            height: 6,
+                            borderRadius: 99,
+                            background: "rgba(255,255,255,0.15)",
+                            overflow: "hidden",
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: `${pct}%`,
+                              height: "100%",
+                              background: p.accentColor,
+                              borderRadius: 99,
+                            }}
+                          />
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>
+                          {pct}%
+                        </span>
+                      </div>
+                    </div>
+
+                    {idx === p.scenes!.length - 1 ? (
+                      <div style={{ marginTop: 6 }}>
+                        <PulseButton text={p.ctaText} color={p.accentColor} delay={6} />
+                      </div>
+                    ) : null}
+                  </div>
+                </FadeIn>
+              </AbsoluteFill>
+            </Sequence>
+          );
+        })
+      ) : (
+        <>
+          {/* --- Scene 1: catch copy + accent wipe (0-1.6s) --- */}
       <Sequence from={0} durationInFrames={S(8)} layout="none">
         <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
           <FadeIn delay={4} duration={16} direction="up">
@@ -470,6 +691,8 @@ const PlayerBody: React.FC<SocialReelProps> = (p) => {
           <PulseButton text={p.ctaText} color={p.accentColor} delay={0} />
         </AbsoluteFill>
       </Sequence>
+        </>
+      )}
     </AbsoluteFill>
   );
 };
