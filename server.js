@@ -98,6 +98,8 @@ app.post('/render', async (req, res) => {
   const title = String(req.body.title || 'Tryout League');
   const caption = String(req.body.caption || '');
   const themeColor = String(req.body.themeColor || '#0b63ce');
+  const compositionId = String(req.body.compositionId || 'MotionGraphic');
+  const branding = req.body.branding && typeof req.body.branding === 'object' ? req.body.branding : undefined;
   const scenes = Array.isArray(req.body.scenes) ? req.body.scenes : [];
   const audioBase64 = req.body.audioBase64 || '';
   const audioMimeType = req.body.audioMimeType || 'audio/L16;rate=24000';
@@ -126,11 +128,11 @@ app.post('/render', async (req, res) => {
 
     console.log(`[${jobId}] Starting render (${durationSec}s, ${durationInFrames} frames, scenes=${preparedScenes.length}, browser=${browserExecutable || 'default'})`);
     const serveUrl = await getBundleLocation();
-    const inputProps = { title, themeColor, audioUrl, productImageUrl, bgImageUrl, fps, durationInFrames, scenes: preparedScenes };
+    const inputProps = { title, themeColor, audioUrl, productImageUrl, bgImageUrl, fps, durationInFrames, scenes: preparedScenes, branding };
 
     const composition = await selectComposition({
       serveUrl,
-      id: 'MotionGraphic',
+      id: compositionId,
       inputProps,
       browserExecutable,
     });
