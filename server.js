@@ -130,6 +130,7 @@ app.post('/render', async (req, res) => {
       codec: 'h264',
       outputLocation: outMp4,
       inputProps,
+      concurrency: 1,
       chromiumOptions: {
         headless: 'new',
       },
