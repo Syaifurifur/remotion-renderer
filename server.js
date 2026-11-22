@@ -170,6 +170,182 @@ app.post('/render', async (req, res) => {
   }
 });
 
+function writeAssSubtitles(jobId, scenes, totalDurationSec) {
+  const assPath = path.join(WORK_DIR, `${jobId}.ass`);
+  const safeScenes = scenes.length
+    ? scenes
+    : [{ badge: 'PROMO', headline: 'Rekomendasi Produk', subtext: 'Cek link di bio sekarang!', durationSec: totalDurationSec }];
+  const sumSec = safeScenes.reduce((acc, s) => acc + Math.max(2, Number(s.durationSec) || 5), 0);
+
+  const fmtTime = (sec) => {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = (sec % 60).toFixed(2).padStart(5, '0');
+    return `${h}:${String(m).padStart(2, '0')}:${s}`;
+  };
+
+  let events = '';
+  let cursor = 0;
+  safeScenes.forEach((sc, idx) => {
+    const ratio = Math.max(2, Number(sc.durationSec) || 5) / Math.max(1, sumSec);
+    const dur = idx === safeScenes.length - 1 ? Math.max(2, totalDurationSec - cursor) : Math.max(2, totalDurationSec * ratio);
+    const start = fmtTime(cursor);
+    const end = fmtTime(cursor + dur);
+    cursor += dur;
+
+    const clean = (txt) => String(txt || '').replace(/[\r\n]+/g, ' ').replace(/[{}]/g, '');
+    const badge = clean(sc.badge || `POIN ${idx + 1}`).toUpperCase();
+    const headline = clean(sc.headline);
+    const subtext = clean(sc.subtext);
+
+    events += `Dialogue: 0,${start},${end},Badge,,0,0,0,,{\\fad(180,180)}${badge}\n`;
+    events += `Dialogue: 0,${start},${end},Headline,,0,0,0,,{\\fad(200,180)}${headline}\\N{\\rSubtext}${subtext}\n`;
+  });
+
+  const header = `[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Badge,Liberation Sans,34,&H00FFFFFF,&H000000FF,&H00CE630B,&H80000000,-1,0,0,0,100,100,2,0,3,10,0,8,60,60,110,1
+Style: Headline,Liberation Sans,64,&H00FFFFFF,&H000000FF,&H00000000,&H99000000,-1,0,0,0,100,100,0,0,1,4,3,2,70,70,150,1
+Style: Subtext,Liberation Sans,38,&H00E2E8F0,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,3,2,2,70,70,150,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+${events}`;
+
+  fs.writeFileSync(assPath, header, 'utf8');
+  return assPath;
+}
+
+app.post('/render-ffmpeg', async (req, res) => {
+  const startedAt = Date.now();
+  const jobId = String(req.body.jobId || `ff_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '');
+  const title = String(req.body.title || 'Promo Produk Affiliate');
+  const caption = String(req.body.caption || '');
+  const scenes = Array.isArray(req.body.scenes) ? req.body.scenes : [];
+  const audioBase64 = req.body.audioBase64 || '';
+  const audioMimeType = req.body.audioMimeType || 'audio/L16;rate=24000';
+  const productImageBase64 = req.body.productImageBase64 || '';
+  const productImageMimeType = req.body.productImageMimeType || 'image/jpeg';
+
+  try {
+    const { audioFile, durationSec } = writeAndConvertAudio(jobId, audioBase64, audioMimeType);
+    const fallbackImgPath = productImageBase64
+      ? path.join(OUTPUT_DIR, `${jobId}_product.${String(productImageMimeType).includes('png') ? 'png' : 'jpg'}`)
+      : null;
+    if (fallbackImgPath) {
+      fs.writeFileSync(fallbackImgPath, Buffer.from(productImageBase64, 'base64'));
+    }
+
+    const safeScenes = scenes.length
+      ? scenes
+      : [{ badge: 'PROMO', headline: title, subtext: 'Cek link produk sekarang!', durationSec, motion: 'zoomIn' }];
+
+    const sumSec = safeScenes.reduce((acc, s) => acc + Math.max(2, Number(s.durationSec) || 5), 0);
+    const fps = 24;
+    const xfadeDur = 0.5;
+    const clipPaths = [];
+    const clipDurations = [];
+    let cursor = 0;
+
+    for (let i = 0; i < safeScenes.length; i++) {
+      const sc = safeScenes[i];
+      const ratio = Math.max(2, Number(sc.durationSec) || 5) / Math.max(1, sumSec);
+      const baseDur = i === safeScenes.length - 1 ? Math.max(2, durationSec - cursor) : Math.max(2, durationSec * ratio);
+      cursor += baseDur;
+      const clipDur = baseDur + (i < safeScenes.length - 1 ? xfadeDur : 0);
+      clipDurations.push(clipDur);
+
+      let imgPath = fallbackImgPath;
+      if (sc.imageBase64) {
+        const ext = String(sc.imageMimeType || 'image/png').includes('png') ? 'png' : 'jpg';
+        imgPath = path.join(WORK_DIR, `${jobId}_sc_${i}.${ext}`);
+        fs.writeFileSync(imgPath, Buffer.from(sc.imageBase64, 'base64'));
+      }
+      if (!imgPath) {
+        throw new Error(`No image provided for scene ${i}`);
+      }
+
+      const frames = Math.max(24, Math.round(clipDur * fps));
+      const motion = sc.motion || ['zoomIn', 'panRight', 'zoomOut', 'panLeft'][i % 4];
+      let zpExpr = `zoompan=z='min(zoom+0.0012,1.15)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=1080x1920:fps=${fps}`;
+      if (motion === 'zoomOut') {
+        zpExpr = `zoompan=z='if(lte(zoom,1.0),1.15,max(1.001,zoom-0.0012))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=1080x1920:fps=${fps}`;
+      } else if (motion === 'panRight') {
+        zpExpr = `zoompan=z='1.12':x='(iw-iw/zoom)*(on/${frames})':y='ih/2-(ih/zoom/2)':d=${frames}:s=1080x1920:fps=${fps}`;
+      } else if (motion === 'panLeft') {
+        zpExpr = `zoompan=z='1.12':x='(iw-iw/zoom)*(1-on/${frames})':y='ih/2-(ih/zoom/2)':d=${frames}:s=1080x1920:fps=${fps}`;
+      }
+
+      const clipPath = path.join(WORK_DIR, `${jobId}_clip_${i}.mp4`);
+      execFileSync('ffmpeg', [
+        '-y',
+        '-loop', '1',
+        '-i', imgPath,
+        '-vf', `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,${zpExpr},format=yuv420p`,
+        '-t', clipDur.toFixed(2),
+        '-c:v', 'libx264',
+        '-preset', 'veryfast',
+        '-pix_fmt', 'yuv420p',
+        clipPath,
+      ]);
+      clipPaths.push(clipPath);
+    }
+
+    const assPath = writeAssSubtitles(jobId, safeScenes, durationSec);
+    const outMp4 = path.join(OUTPUT_DIR, `${jobId}.mp4`);
+
+    const ffArgs = ['-y'];
+    clipPaths.forEach((cp) => ffArgs.push('-i', cp));
+    if (audioFile) {
+      ffArgs.push('-i', audioFile);
+    }
+
+    const transitions = ['fade', 'slideleft', 'smoothleft', 'wipeleft'];
+    let filterComplex = '';
+    if (clipPaths.length === 1) {
+      filterComplex = `[0:v]drawbox=x=0:y=ih*0.72:w=iw:h=ih*0.28:color=black@0.55:t=fill,ass='${assPath.replace(/\\/g, '/')}'[vout]`;
+    } else {
+      let prevLabel = '0:v';
+      let offset = clipDurations[0] - xfadeDur;
+      for (let i = 1; i < clipPaths.length; i++) {
+        const nextLabel = i === clipPaths.length - 1 ? 'vmerged' : `vx${i}`;
+        const tr = transitions[(i - 1) % transitions.length];
+        filterComplex += `[${prevLabel}][${i}:v]xfade=transition=${tr}:duration=${xfadeDur}:offset=${offset.toFixed(2)}[${nextLabel}];`;
+        prevLabel = nextLabel;
+        offset += clipDurations[i] - xfadeDur;
+      }
+      filterComplex += `[vmerged]drawbox=x=0:y=ih*0.72:w=iw:h=ih*0.28:color=black@0.55:t=fill,ass='${assPath.replace(/\\/g, '/')}'[vout]`;
+    }
+
+    ffArgs.push('-filter_complex', filterComplex, '-map', '[vout]');
+    if (audioFile) {
+      ffArgs.push('-map', `${clipPaths.length}:a`, '-c:a', 'aac', '-b:a', '192k', '-shortest');
+    }
+    ffArgs.push('-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', outMp4);
+
+    execFileSync('ffmpeg', ffArgs);
+
+    clipPaths.forEach((cp) => fs.existsSync(cp) && fs.unlinkSync(cp));
+    if (fs.existsSync(assPath)) fs.unlinkSync(assPath);
+
+    const renderTimeSec = Number(((Date.now() - startedAt) / 1000).toFixed(2));
+    const videoUrl = `${PUBLIC_BASE_URL}/outputs/${jobId}.mp4`;
+    const meta = { ok: true, engine: 'ffmpeg', jobId, title, caption, videoUrl, durationSec, renderTimeSec };
+    fs.writeFileSync(path.join(OUTPUT_DIR, `${jobId}.json`), JSON.stringify(meta, null, 2));
+    console.log(`[${jobId}] FFmpeg render complete in ${renderTimeSec}s -> ${outMp4}`);
+
+    res.json(meta);
+  } catch (err) {
+    console.error('FFmpeg render error:', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Remotion renderer listening on port ${PORT}`);
   getBundleLocation().catch((err) => console.error('Pre-bundle warning:', err));
