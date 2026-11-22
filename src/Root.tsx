@@ -8,6 +8,7 @@ const defaultProps: MotionGraphicProps = {
   audioUrl: '',
   productImageUrl: '',
   bgImageUrl: '',
+  branding: undefined,
   fps: 30,
   durationInFrames: 900,
   scenes: [

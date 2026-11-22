@@ -9,6 +9,8 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
+import { BeautyIcon, resolveIconCategory } from './BeautyIcons';
+import { AmbientBokeh, BounceHeadline, BrandHeaderCard } from './TemplateEffects';
 
 export interface SceneItem {
   headline: string;
@@ -17,7 +19,16 @@ export interface SceneItem {
   durationSec: number;
   showProduct?: boolean;
   imageUrl?: string;
+  icon?: string;
   motion?: 'zoomIn' | 'panRight' | 'zoomOut' | 'panLeft';
+}
+
+export interface BrandingConfig {
+  name?: string;
+  tagline?: string;
+  primary?: string;
+  secondary?: string;
+  accent?: string;
 }
 
 export interface MotionGraphicProps {
@@ -26,6 +37,7 @@ export interface MotionGraphicProps {
   audioUrl?: string;
   productImageUrl?: string;
   bgImageUrl?: string;
+  branding?: BrandingConfig;
   fps: number;
   durationInFrames: number;
   scenes: SceneItem[];
@@ -49,7 +61,7 @@ const LightStreaksOverlay: React.FC<{ themeColor: string; frame: number }> = ({
     <AbsoluteFill style={{ pointerEvents: 'none', overflow: 'hidden' }}>
       <svg
         viewBox="0 0 1080 1920"
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.45 }}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.42 }}
       >
         <defs>
           <linearGradient id="streakA" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -82,10 +94,12 @@ const LightStreaksOverlay: React.FC<{ themeColor: string; frame: number }> = ({
 const SceneSlide: React.FC<{
   scene: SceneItem;
   themeColor: string;
+  accentColor: string;
   fallbackProductUrl?: string;
+  hasBrandHeader: boolean;
   index: number;
   total: number;
-}> = ({ scene, themeColor, fallbackProductUrl, index, total }) => {
+}> = ({ scene, themeColor, accentColor, fallbackProductUrl, hasBrandHeader, index, total }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
 
@@ -124,7 +138,9 @@ const SceneSlide: React.FC<{
   const prodTilt = Math.sin(frame / 36) * 4.5 - 1;
   const prodScale = interpolate(progress, [0, 1], [0.97, 1.05]);
 
-  const yIn = interpolate(enter, [0, 1], [38, 0]);
+  const iconType = resolveIconCategory(scene.icon, scene.badge, scene.headline);
+  const iconFloat = Math.sin(frame / 16) * 10;
+  const iconScale = interpolate(enter, [0, 1], [0.75, 1]);
   const badgeScale = interpolate(enter, [0, 1], [0.88, 1]);
 
   return (
@@ -144,13 +160,13 @@ const SceneSlide: React.FC<{
         </AbsoluteFill>
       )}
 
-      {/* Floating Hero Product Photo (always preserves 100% real product packaging) */}
-      {showFloatingProduct && (
+      {/* Floating Hero Product Photo OR Center Editorial Icon Showcase */}
+      {showFloatingProduct ? (
         <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center', paddingBottom: 110 }}>
           <div
             style={{
-              width: 660,
-              height: 840,
+              width: 640,
+              height: 820,
               borderRadius: 52,
               overflow: 'hidden',
               transform: `translateY(${prodFloatY}px) rotate(${prodTilt}deg) scale(${prodScale})`,
@@ -165,6 +181,25 @@ const SceneSlide: React.FC<{
             <Img src={fallbackProductUrl!} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         </AbsoluteFill>
+      ) : (
+        <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center', paddingBottom: 180 }}>
+          <div
+            style={{
+              width: 240,
+              height: 240,
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.92)',
+              border: `3px solid ${accentColor}`,
+              boxShadow: `0 24px 70px rgba(0,0,0,0.25), 0 0 60px ${themeColor}55`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transform: `translateY(${iconFloat}px) scale(${iconScale})`,
+            }}
+          >
+            <BeautyIcon type={iconType} primaryColor="#e11d74" accentColor={themeColor || '#7c3aed'} size={132} />
+          </div>
+        </AbsoluteFill>
       )}
 
       {/* Top/Bottom Contrast Scrim */}
@@ -173,16 +208,16 @@ const SceneSlide: React.FC<{
           position: 'absolute',
           inset: 0,
           background:
-            'linear-gradient(to bottom, rgba(5,8,14,0.62) 0%, rgba(5,8,14,0) 24%, rgba(5,8,14,0) 56%, rgba(5,8,14,0.88) 82%, rgba(5,8,14,0.97) 100%)',
+            'linear-gradient(to bottom, rgba(5,8,14,0.48) 0%, rgba(5,8,14,0) 24%, rgba(5,8,14,0) 56%, rgba(5,8,14,0.86) 82%, rgba(5,8,14,0.96) 100%)',
           pointerEvents: 'none',
         }}
       />
 
-      {/* Top Safe Zone: Sleek Pill Badge */}
+      {/* Top Safe Zone: Sleek Pill Badge + Mini Icon */}
       <div
         style={{
           position: 'absolute',
-          top: 120,
+          top: hasBrandHeader ? 176 : 116,
           left: 72,
           right: 72,
           display: 'flex',
@@ -195,31 +230,24 @@ const SceneSlide: React.FC<{
             display: 'inline-flex',
             alignItems: 'center',
             gap: 12,
-            background: 'rgba(15, 23, 42, 0.76)',
-            border: `1.5px solid ${themeColor || '#38bdf8'}`,
+            background: 'rgba(15, 23, 42, 0.78)',
+            border: `1.5px solid ${accentColor || '#38bdf8'}`,
             boxShadow: `0 10px 30px ${themeColor}44`,
             color: '#f8fafc',
-            fontSize: 26,
+            fontSize: 25,
             fontWeight: 800,
             letterSpacing: '0.14em',
-            padding: '12px 30px',
+            padding: '10px 26px',
             borderRadius: 999,
             textTransform: 'uppercase',
           }}
         >
-          <span
-            style={{
-              width: 10,
-              height: 10,
-              borderRadius: '50%',
-              background: themeColor || '#38bdf8',
-            }}
-          />
+          <BeautyIcon type={iconType} primaryColor="#f472b6" accentColor="#ffffff" size={30} />
           {scene.badge || `POIN ${index + 1}/${total}`}
         </div>
       </div>
 
-      {/* Bottom Safe Zone: Kinetic Typography */}
+      {/* Bottom Safe Zone: Bounce-In Headline + Subtext */}
       <div
         style={{
           position: 'absolute',
@@ -227,22 +255,17 @@ const SceneSlide: React.FC<{
           left: 68,
           right: 68,
           textAlign: 'center',
-          transform: `translateY(${yIn}px)`,
         }}
       >
-        <h1
-          style={{
-            color: '#ffffff',
-            fontSize: 64,
-            fontWeight: 900,
-            lineHeight: 1.12,
-            margin: 0,
-            letterSpacing: '-0.025em',
-            textShadow: '0 8px 32px rgba(0,0,0,0.9)',
-          }}
-        >
-          {scene.headline}
-        </h1>
+        <BounceHeadline
+          text={scene.headline}
+          color="#ffffff"
+          fontSize={62}
+          bounces={2}
+          height={34}
+          delay={0}
+          duration={20}
+        />
         <p
           style={{
             color: '#e2e8f0',
@@ -267,19 +290,30 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
   audioUrl,
   productImageUrl,
   bgImageUrl,
+  branding,
   fps = 24,
   durationInFrames,
   scenes = [],
 }) => {
   const frame = useCurrentFrame();
   const progress = Math.min(1, frame / Math.max(1, durationInFrames - 1));
+  const bgScale = interpolate(frame, [0, Math.max(1, durationInFrames)], [1.0, 1.12], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  const isBranded = Boolean(branding?.name);
+  const accentColor = branding?.accent || branding?.primary || themeColor || '#38bdf8';
+  const bokehColors = isBranded
+    ? [branding?.primary || '#F8C6D0', branding?.accent || '#D4A5A5', '#FFFFFF']
+    : [themeColor || '#0b63ce', '#38bdf8', '#ffffff'];
 
   const safeScenes = scenes.length
     ? scenes
     : [
         {
           headline: title,
-          subtext: 'Promo Spesial Hari Ini',
+          subtext: branding?.tagline || 'Promo Spesial Hari Ini',
           badge: 'PROMO',
           durationSec: 5,
           showProduct: true,
@@ -292,15 +326,22 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
   return (
     <AbsoluteFill
       style={{
-        background: `linear-gradient(165deg, #10151c 0%, #1c2430 48%, #090d14 100%)`,
+        background: isBranded
+          ? 'linear-gradient(165deg, #2a1820 0%, #422530 50%, #1b0f14 100%)'
+          : 'linear-gradient(165deg, #10151c 0%, #1c2430 48%, #090d14 100%)',
         fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
     >
       {bgImageUrl && (
-        <AbsoluteFill style={{ overflow: 'hidden', opacity: 0.45 }}>
-          <Img src={bgImageUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <AbsoluteFill style={{ overflow: 'hidden', opacity: 0.62 }}>
+          <Img
+            src={bgImageUrl}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', transform: `scale(${bgScale})` }}
+          />
         </AbsoluteFill>
       )}
+
+      <AmbientBokeh colors={bokehColors} count={12} />
 
       {safeScenes.map((scene, idx) => {
         const ratio = Math.max(2, Number(scene.durationSec) || 5) / Math.max(1, totalSceneSec);
@@ -316,7 +357,9 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
             <SceneSlide
               scene={scene}
               themeColor={themeColor}
+              accentColor={accentColor}
               fallbackProductUrl={productImageUrl}
+              hasBrandHeader={isBranded}
               index={idx}
               total={safeScenes.length}
             />
@@ -324,7 +367,16 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
         );
       })}
 
-      <LightStreaksOverlay themeColor={themeColor} frame={frame} />
+      <LightStreaksOverlay themeColor={accentColor} frame={frame} />
+
+      {branding?.name && (
+        <BrandHeaderCard
+          name={branding.name}
+          tagline={branding.tagline}
+          accentColor={accentColor}
+          lightMode={false}
+        />
+      )}
 
       {/* Sleek Bottom Progress Line */}
       <div
@@ -343,7 +395,7 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
           style={{
             width: `${progress * 100}%`,
             height: '100%',
-            background: `linear-gradient(90deg, ${themeColor || '#38bdf8'}, #ffffff)`,
+            background: `linear-gradient(90deg, ${accentColor}, #ffffff)`,
             borderRadius: 999,
           }}
         />
