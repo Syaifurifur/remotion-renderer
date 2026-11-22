@@ -1,0 +1,37 @@
+name: Remotion CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - feature/narayya-beauty-template
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck-and-bundle:
+    name: TypeScript check and Remotion bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Bundle Remotion compositions
+        run: npx remotion bundle src/index.ts --out-dir=dist/remotion-bundle
