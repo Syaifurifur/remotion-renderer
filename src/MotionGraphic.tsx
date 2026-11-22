@@ -38,6 +38,7 @@ export interface MotionGraphicProps {
   productImageUrl?: string;
   bgImageUrl?: string;
   branding?: BrandingConfig;
+  templateStyle?: string;
   fps: number;
   durationInFrames: number;
   scenes: SceneItem[];
@@ -291,6 +292,7 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
   productImageUrl,
   bgImageUrl,
   branding,
+  templateStyle = 'luxury-editorial',
   fps = 24,
   durationInFrames,
   scenes = [],
@@ -303,10 +305,28 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
   });
 
   const isBranded = Boolean(branding?.name);
-  const accentColor = branding?.accent || branding?.primary || themeColor || '#38bdf8';
+  const accentColor =
+    templateStyle === 'neon-sign'
+      ? '#f43f5e'
+      : templateStyle === 'glitch-text'
+        ? '#22d3ee'
+        : templateStyle === 'kinetic-word-stack'
+          ? '#f59e0b'
+          : branding?.accent || branding?.primary || themeColor || '#38bdf8';
   const bokehColors = isBranded
     ? [branding?.primary || '#F8C6D0', branding?.accent || '#D4A5A5', '#FFFFFF']
-    : [themeColor || '#0b63ce', '#38bdf8', '#ffffff'];
+    : [accentColor, '#38bdf8', '#ffffff'];
+
+  const bgGradient =
+    templateStyle === 'neon-sign'
+      ? 'linear-gradient(165deg, #090314 0%, #1d0936 52%, #05010a 100%)'
+      : templateStyle === 'glitch-text'
+        ? 'linear-gradient(165deg, #06131c 0%, #0d2336 50%, #03070d 100%)'
+        : templateStyle === 'social-reel'
+          ? 'linear-gradient(165deg, #1b1124 0%, #311b3b 50%, #0e0714 100%)'
+          : isBranded
+            ? 'linear-gradient(165deg, #2a1820 0%, #422530 50%, #1b0f14 100%)'
+            : 'linear-gradient(165deg, #10151c 0%, #1c2430 48%, #090d14 100%)';
 
   const safeScenes = scenes.length
     ? scenes
@@ -326,9 +346,7 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
   return (
     <AbsoluteFill
       style={{
-        background: isBranded
-          ? 'linear-gradient(165deg, #2a1820 0%, #422530 50%, #1b0f14 100%)'
-          : 'linear-gradient(165deg, #10151c 0%, #1c2430 48%, #090d14 100%)',
+        background: bgGradient,
         fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
     >

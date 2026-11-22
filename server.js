@@ -84,6 +84,35 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'remotion-renderer' });
 });
 
+app.get('/templates', (_req, res) => {
+  res.json({
+    presets: [
+      { id: 'luxury-editorial', label: '✨ Luxury Editorial (Bokeh + Bounce)', compositionId: 'MotionGraphic' },
+      { id: 'social-reel', label: '📱 Social Reel Frame', compositionId: 'MotionGraphic' },
+      { id: 'kinetic-word-stack', label: '⚡ Kinetic Word Stack', compositionId: 'MotionGraphic' },
+      { id: 'neon-sign', label: '💡 Neon Glow Promo', compositionId: 'MotionGraphic' },
+      { id: 'glitch-text', label: '🔥 Glitch Dynamic', compositionId: 'MotionGraphic' },
+      { id: 'community-chat', label: '💬 Chat Conversation (9:16)', compositionId: 'community-chat' },
+    ],
+    totalCompositions: 51,
+  });
+});
+
+app.post('/jobs/pending', (req, res) => {
+  const jobId = String(req.body.jobId || `job_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '');
+  const metaPath = path.join(OUTPUT_DIR, `${jobId}.pending.json`);
+  fs.writeFileSync(metaPath, JSON.stringify({ ...req.body, jobId }, null, 2));
+  res.json({ ok: true, jobId });
+});
+
+app.get('/jobs/pending/:jobId', (req, res) => {
+  const metaPath = path.join(OUTPUT_DIR, `${req.params.jobId}.pending.json`);
+  if (!fs.existsSync(metaPath)) {
+    return res.status(404).json({ error: 'Pending job not found' });
+  }
+  return res.json(JSON.parse(fs.readFileSync(metaPath, 'utf8')));
+});
+
 app.get('/jobs/:jobId', (req, res) => {
   const metaPath = path.join(OUTPUT_DIR, `${req.params.jobId}.json`);
   if (!fs.existsSync(metaPath)) {
@@ -99,6 +128,8 @@ app.post('/render', async (req, res) => {
   const caption = String(req.body.caption || '');
   const themeColor = String(req.body.themeColor || '#0b63ce');
   const branding = req.body.branding && typeof req.body.branding === 'object' ? req.body.branding : undefined;
+  const compositionId = String(req.body.compositionId || 'MotionGraphic');
+  const templateStyle = String(req.body.templateStyle || 'luxury-editorial');
   const scenes = Array.isArray(req.body.scenes) ? req.body.scenes : [];
   const audioBase64 = req.body.audioBase64 || '';
   const audioMimeType = req.body.audioMimeType || 'audio/L16;rate=24000';
@@ -125,13 +156,15 @@ app.post('/render', async (req, res) => {
     const audioUrl = audioFile ? `http://127.0.0.1:${PORT}/outputs/${jobId}.mp3` : '';
     const browserExecutable = fs.existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : undefined;
 
-    console.log(`[${jobId}] Starting render (${durationSec}s, ${durationInFrames} frames, scenes=${preparedScenes.length}, browser=${browserExecutable || 'default'})`);
+    console.log(`[${jobId}] Starting render (${compositionId}/${templateStyle}, ${durationSec}s, ${durationInFrames} frames, scenes=${preparedScenes.length}, browser=${browserExecutable || 'default'})`);
     const serveUrl = await getBundleLocation();
-    const inputProps = { title, themeColor, audioUrl, productImageUrl, bgImageUrl, branding, fps, durationInFrames, scenes: preparedScenes };
+    const inputProps = compositionId === 'MotionGraphic'
+      ? { title, themeColor, audioUrl, productImageUrl, bgImageUrl, branding, templateStyle, fps, durationInFrames, scenes: preparedScenes }
+      : { ...(req.body.props || {}), title, headline: title };
 
     const composition = await selectComposition({
       serveUrl,
-      id: 'MotionGraphic',
+      id: compositionId,
       inputProps,
       browserExecutable,
     });
