@@ -20,6 +20,7 @@ import { GlitchText } from './components/glitch-text/GlitchText';
 import { GradientTextSweep } from './components/gradient-text-sweep/GradientTextSweep';
 import { KineticWordStack } from './components/kinetic-word-stack/KineticWordStack';
 import { KpiCounter } from './components/kpi-counter/KpiCounter';
+import { NarayyaCleanMotion } from './components/narayya-clean/NarayyaCleanMotion';
 import { NeonSign } from './components/neon-sign/NeonSign';
 import { SocialReel } from './components/social-reel/SocialReel';
 import { TextMaskReveal } from './components/text-mask-reveal/TextMaskReveal';
@@ -647,6 +648,24 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
           durationSec: 5,
         },
       ];
+
+  // If templateStyle is 'narayya-brand', render the official Narayya Beauty Brand Kit + Naya Mascot + Ducked BGM
+  if (templateStyle === 'narayya-brand') {
+    return (
+      <AbsoluteFill>
+        <NarayyaCleanMotion
+          title={title}
+          brandName={branding?.name || 'Narayya Beauty'}
+          tagline={branding?.tagline || 'cantik dengan caramu'}
+          bgImageUrl={bgImageUrl}
+          productImageUrl={productImageUrl}
+          scenes={safeScenes}
+        />
+        {bgmUrl ? <Audio src={bgmUrl} volume={bgmVolume} loop /> : null}
+        {audioUrl ? <Audio src={audioUrl} /> : null}
+      </AbsoluteFill>
+    );
+  }
 
   // If templateStyle is 'clean-ui-motion', render the H2BY.STUDIO Clean UI Motion skill template + ducked ambient BGM
   if (templateStyle === 'clean-ui-motion') {

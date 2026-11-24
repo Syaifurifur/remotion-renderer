@@ -1,0 +1,26 @@
+{
+  "brandName": "Narayya",
+  "subBrand": "BEAUTY",
+  "tagline": "cantik dengan caramu",
+  "greeting": "Hai, Cantik!",
+  "catchphrase": "Glow on, Cantik!",
+  "hashtags": ["#NarayyaBeauty", "#GlowDenganNarayya"],
+  "colors": {
+    "deepPlum": "#3A1E2C",
+    "roseMauve": "#C97B8B",
+    "champagneGold": "#C9A27A",
+    "softNude": "#E3C2B4",
+    "blushPetal": "#F7E6E4",
+    "creamPearl": "#FFF9F5"
+  },
+  "fonts": {
+    "title": "Cormorant Garamond",
+    "highlight": "Allura",
+    "body": "Jost"
+  },
+  "mascot": {
+    "name": "Naya",
+    "role": "si bestie kecantikan Narayya",
+    "expressions": ["senang", "kedip", "kaget", "senyum"]
+  }
+}

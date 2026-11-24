@@ -86,6 +86,10 @@ function writeAndConvertAudio(jobId, audioBase64, audioMimeType) {
 function ensureAmbientBgmUrl() {
   const bgmFilename = 'lofi_ambient.mp3';
   const bgmPath = path.join(ASSETS_DIR, bgmFilename);
+  const publicBgm = path.join(__dirname, 'public', 'audio', 'bgm', bgmFilename);
+  if (fs.existsSync(publicBgm) && (!fs.existsSync(bgmPath) || fs.statSync(publicBgm).size !== fs.statSync(bgmPath).size)) {
+    fs.copyFileSync(publicBgm, bgmPath);
+  }
   if (!fs.existsSync(bgmPath)) {
     try {
       // Synthesize a soft warm Lo-Fi/Ambient pad chord (C4-E4-G4-B4-D5) using ffmpeg
@@ -150,6 +154,7 @@ app.get('/health', (_req, res) => {
 app.get('/templates', (_req, res) => {
   res.json({
     presets: [
+      { id: 'narayya-brand', label: '🌸 Narayya Brand Kit (Naya)', compositionId: 'MotionGraphic' },
       { id: 'clean-ui-motion', label: '🌿 Clean UI Motion (H2BY Grid)', compositionId: 'MotionGraphic' },
       { id: 'editorial-motion', label: '✨ Editorial Motion (Paper Grid)', compositionId: 'MotionGraphic' },
       { id: 'social-reel', label: '📱 Social Reel Frame', compositionId: 'MotionGraphic' },
@@ -255,7 +260,7 @@ app.post('/render', async (req, res) => {
     const fps = 24;
     const durationInFrames = Math.max(72, durationSec * fps);
     const audioUrl = audioFile ? `http://127.0.0.1:${PORT}/outputs/${jobId}.mp3` : '';
-    const bgmUrl = templateStyle === 'clean-ui-motion' ? ensureAmbientBgmUrl() : '';
+    const bgmUrl = (templateStyle === 'clean-ui-motion' || templateStyle === 'narayya-brand') ? ensureAmbientBgmUrl() : '';
     const browserExecutable = fs.existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : undefined;
 
     console.log(`[${jobId}] Starting render (${compositionId}/${templateStyle}, ${durationSec}s, ${durationInFrames} frames, scenes=${preparedScenes.length}, browser=${browserExecutable || 'default'})`);
