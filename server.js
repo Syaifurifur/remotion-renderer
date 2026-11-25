@@ -119,12 +119,34 @@ function ensureAmbientBgmUrl() {
 
 async function generateEdgeTtsAudio(jobId, text) {
   const cleanText = String(text || '').trim();
-  if (!cleanText) return { audioFile: null, durationSec: 20 };
+  if (!cleanText) return { audioFile: null, durationSec: 20, wordTimings: [] };
   const mp3Path = path.join(OUTPUT_DIR, `${jobId}.mp3`);
   try {
     const tts = new MsEdgeTTS();
-    await tts.setMetadata('id-ID-GadisNeural', OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-    const { audioStream } = tts.toStream(cleanText);
+    await tts.setMetadata('id-ID-GadisNeural', OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3, {
+      wordBoundaryEnabled: true,
+    });
+    const { audioStream, metadataStream } = tts.toStream(cleanText);
+    const wordTimings = [];
+    if (metadataStream) {
+      metadataStream.on('data', (chunk) => {
+        try {
+          const parsed = JSON.parse(chunk.toString());
+          const list = Array.isArray(parsed?.Metadata) ? parsed.Metadata : [];
+          for (const item of list) {
+            if (item?.Type === 'WordBoundary' && item?.Data?.text?.Text) {
+              const offsetSec = Number(item.Data.Offset || 0) / 10_000_000;
+              const durSec = Number(item.Data.Duration || 0) / 10_000_000;
+              wordTimings.push({
+                text: String(item.Data.text.Text),
+                startSec: offsetSec,
+                endSec: offsetSec + durSec,
+              });
+            }
+          }
+        } catch (_e) {}
+      });
+    }
     await new Promise((resolve, reject) => {
       const ws = fs.createWriteStream(mp3Path);
       audioStream.pipe(ws);
@@ -139,11 +161,11 @@ async function generateEdgeTtsAudio(jobId, text) {
       mp3Path,
     ]).toString().trim();
     const durationSec = Math.max(5, Math.ceil(parseFloat(probe) || 20));
-    console.log(`[${jobId}] Edge TTS fallback generated -> ${mp3Path} (${durationSec}s)`);
-    return { audioFile: mp3Path, durationSec };
+    console.log(`[${jobId}] Edge TTS generated -> ${mp3Path} (${durationSec}s, words=${wordTimings.length})`);
+    return { audioFile: mp3Path, durationSec, wordTimings };
   } catch (err) {
     console.error(`[${jobId}] Edge TTS fallback error:`, err.message);
-    return { audioFile: null, durationSec: 20 };
+    return { audioFile: null, durationSec: 20, wordTimings: [] };
   }
 }
 
@@ -233,12 +255,13 @@ app.post('/render', async (req, res) => {
 
   try {
     let { audioFile, durationSec } = writeAndConvertAudio(jobId, audioBase64, audioMimeType);
+    let wordTimings = [];
     if (!audioFile) {
       const fallbackText =
         String(req.body.ttsText || '').trim() ||
         scenes.map((s) => `${s.headline || ''}. ${s.subtext || ''}`).join(' ').trim();
       if (fallbackText) {
-        ({ audioFile, durationSec } = await generateEdgeTtsAudio(jobId, fallbackText));
+        ({ audioFile, durationSec, wordTimings } = await generateEdgeTtsAudio(jobId, fallbackText));
       }
     }
     const productImageUrl = writeImageFile(jobId, 'product', productImageBase64, productImageMimeType);
@@ -266,7 +289,7 @@ app.post('/render', async (req, res) => {
     console.log(`[${jobId}] Starting render (${compositionId}/${templateStyle}, ${durationSec}s, ${durationInFrames} frames, scenes=${preparedScenes.length}, browser=${browserExecutable || 'default'})`);
     const serveUrl = await getBundleLocation();
     const inputProps = compositionId === 'MotionGraphic'
-      ? { title, themeColor, audioUrl, bgmUrl, productImageUrl, bgImageUrl, branding, templateStyle, fps, durationInFrames, scenes: preparedScenes }
+      ? { title, themeColor, audioUrl, bgmUrl, productImageUrl, bgImageUrl, branding, templateStyle, fps, durationInFrames, scenes: preparedScenes, wordTimings }
       : { ...(req.body.props || {}), title, headline: title };
 
     const composition = await selectComposition({
@@ -375,12 +398,13 @@ app.post('/render-ffmpeg', async (req, res) => {
 
   try {
     let { audioFile, durationSec } = writeAndConvertAudio(jobId, audioBase64, audioMimeType);
+    let wordTimings = [];
     if (!audioFile) {
       const fallbackText =
         String(req.body.ttsText || '').trim() ||
         scenes.map((s) => `${s.headline || ''}. ${s.subtext || ''}`).join(' ').trim();
       if (fallbackText) {
-        ({ audioFile, durationSec } = await generateEdgeTtsAudio(jobId, fallbackText));
+        ({ audioFile, durationSec, wordTimings } = await generateEdgeTtsAudio(jobId, fallbackText));
       }
     }
     const fallbackImgPath = productImageBase64

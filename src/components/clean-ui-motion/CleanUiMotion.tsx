@@ -1,25 +1,47 @@
 import React from 'react';
 import {
   AbsoluteFill,
+  Audio,
   Img,
   interpolate,
   Sequence,
   spring,
+  staticFile,
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
-import { BeautyIcon, resolveIconCategory } from '../../BeautyIcons';
+import { linearTiming, TransitionSeries } from '@remotion/transitions';
+import { fade } from '@remotion/transitions/fade';
+import { slide } from '@remotion/transitions/slide';
+import { LucideIconResolver } from '../shared/LucideIconResolver';
 
 const SANS = '-apple-system, "Segoe UI", Roboto, sans-serif';
 const MONO = 'Consolas, "Courier New", monospace';
+
+export type CleanUiItem = {
+  title: string;
+  desc: string;
+  icon?: string;
+};
 
 export type CleanUiScene = {
   headline: string;
   subtext: string;
   badge?: string;
+  category?: string;
+  highlightHeadline?: string;
+  highlightWords?: string[];
+  cardLayout?: string;
+  items?: CleanUiItem[];
   icon?: string;
   imageUrl?: string;
   durationSec?: number;
+};
+
+export type WordTiming = {
+  text: string;
+  startSec: number;
+  endSec: number;
 };
 
 export type CleanUiMotionProps = {
@@ -29,6 +51,7 @@ export type CleanUiMotionProps = {
   bgImageUrl?: string;
   productImageUrl?: string;
   scenes: CleanUiScene[];
+  wordTimings?: WordTiming[];
 };
 
 const CleanGridBackdrop: React.FC<{ brandName: string }> = ({ brandName }) => (
@@ -60,7 +83,6 @@ const CleanGridBackdrop: React.FC<{ brandName: string }> = ({ brandName }) => (
         backgroundSize: '44px 44px',
       }}
     />
-    {/* Top-right brand mark */}
     <div
       style={{
         position: 'absolute',
@@ -76,7 +98,6 @@ const CleanGridBackdrop: React.FC<{ brandName: string }> = ({ brandName }) => (
     >
       {brandName}
     </div>
-    {/* Bottom-left follow micro tag */}
     <div
       style={{
         position: 'absolute',
@@ -87,44 +108,30 @@ const CleanGridBackdrop: React.FC<{ brandName: string }> = ({ brandName }) => (
         gap: 2,
       }}
     >
-      <span
-        style={{
-          fontFamily: SANS,
-          fontSize: 13,
-          fontWeight: 600,
-          letterSpacing: '0.08em',
-          color: '#64748B',
-        }}
-      >
+      <span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 600, letterSpacing: '0.08em', color: '#64748B' }}>
         FOLLOW ACCOUNT FOR TIPS
       </span>
-      <span
-        style={{
-          fontFamily: SANS,
-          fontSize: 18,
-          fontWeight: 900,
-          letterSpacing: '0.06em',
-          color: '#1E293B',
-        }}
-      >
+      <span style={{ fontFamily: SANS, fontSize: 18, fontWeight: 900, letterSpacing: '0.06em', color: '#1E293B' }}>
         {brandName}
       </span>
     </div>
   </AbsoluteFill>
 );
 
-const TwoToneHeadline: React.FC<{ category: string; headline: string }> = ({
-  category,
-  headline,
-}) => {
+const TwoToneHeadline: React.FC<{
+  category: string;
+  headline: string;
+  highlightHeadline?: string;
+}> = ({ category, headline, highlightHeadline }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const enter = spring({ frame, fps, config: { damping: 20, stiffness: 140 } });
 
   const words = String(headline || 'CLEAN MOTION').trim().split(/\s+/).filter(Boolean);
+  const hlClean = String(highlightHeadline || '').toLowerCase().trim();
   const mid = Math.max(1, Math.ceil(words.length / 2));
-  const line1 = words.slice(0, mid).join(' ');
-  const line2 = words.slice(mid).join(' ');
+  const line1 = hlClean ? headline : words.slice(0, mid).join(' ');
+  const line2 = hlClean ? highlightHeadline : words.slice(mid).join(' ');
 
   return (
     <div
@@ -132,7 +139,7 @@ const TwoToneHeadline: React.FC<{ category: string; headline: string }> = ({
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 22,
+        gap: 20,
         opacity: enter,
         transform: `translateY(${(1 - enter) * 18}px)`,
       }}
@@ -220,20 +227,43 @@ const CleanCardShell: React.FC<{
   );
 };
 
-/** Word-highlighted subtitle synchronized to the scene */
-const HighlightCaption: React.FC<{ subtext: string; tone?: 'mint' | 'peach' }> = ({
-  subtext,
-  tone = 'mint',
-}) => {
+/** Synchronized word-highlighted caption using Edge TTS wordTimings (with proportional fallback) */
+const HighlightCaption: React.FC<{
+  subtext: string;
+  highlightWords?: string[];
+  tone?: 'mint' | 'peach';
+  sceneStartSec: number;
+  sceneDurationSec: number;
+  wordTimings?: WordTiming[];
+}> = ({ subtext, highlightWords = [], tone = 'mint', sceneStartSec, sceneDurationSec, wordTimings = [] }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
-  const enter = spring({ frame: frame - 5, fps, config: { damping: 20, stiffness: 140 } });
+  const enter = spring({ frame: frame - 4, fps, config: { damping: 20, stiffness: 140 } });
   const words = String(subtext || '').trim().split(/\s+/).filter(Boolean);
-  const progress = interpolate(frame, [0, Math.max(1, durationInFrames)], [0, words.length], {
-    extrapolateRight: 'clamp',
-  });
-  const activeIdx = Math.min(words.length - 1, Math.floor(progress));
-  const highlightBg = tone === 'peach' ? 'rgba(251, 146, 60, 0.22)' : 'rgba(20, 184, 166, 0.18)';
+
+  const localSec = frame / Math.max(1, fps);
+  const globalSec = sceneStartSec + localSec;
+
+  // Match active word via real WordBoundary timings if available, else proportional
+  let activeIdx = Math.min(
+    words.length - 1,
+    Math.floor(interpolate(frame, [0, Math.max(1, durationInFrames)], [0, words.length], { extrapolateRight: 'clamp' }))
+  );
+
+  if (wordTimings.length > 0) {
+    const activeWT = wordTimings.find((wt) => globalSec >= wt.startSec && globalSec <= wt.endSec + 0.15);
+    if (activeWT) {
+      const cleanWT = activeWT.text.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const matched = words.findIndex((w) => w.toLowerCase().replace(/[^a-z0-9]/g, '') === cleanWT);
+      if (matched >= 0) activeIdx = matched;
+    } else if (sceneDurationSec > 0) {
+      const pct = Math.min(1, localSec / sceneDurationSec);
+      activeIdx = Math.min(words.length - 1, Math.floor(pct * words.length));
+    }
+  }
+
+  const hlSet = new Set(highlightWords.map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, '')));
+  const highlightBg = tone === 'peach' ? 'rgba(251, 146, 60, 0.24)' : 'rgba(20, 184, 166, 0.20)';
 
   return (
     <div
@@ -250,7 +280,8 @@ const HighlightCaption: React.FC<{ subtext: string; tone?: 'mint' | 'peach' }> =
       }}
     >
       {words.map((w, i) => {
-        const isActive = i >= activeIdx - 1 && i <= activeIdx + 1;
+        const cleanW = w.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const isActive = i === activeIdx || (hlSet.has(cleanW) && Math.abs(i - activeIdx) <= 2);
         return (
           <React.Fragment key={i}>
             <span
@@ -270,16 +301,17 @@ const HighlightCaption: React.FC<{ subtext: string; tone?: 'mint' | 'peach' }> =
   );
 };
 
-/** Card 0: Visual Preview + Code/Specs Highlight */
 const HeroVisualCard: React.FC<{
   badge: string;
   visualUrl?: string;
   headline: string;
-  iconType: ReturnType<typeof resolveIconCategory>;
-}> = ({ badge, visualUrl, headline, iconType }) => {
+  icon?: string;
+  items?: CleanUiItem[];
+}> = ({ badge, visualUrl, headline, icon, items = [] }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const pop = spring({ frame: frame - 8, fps, config: { damping: 20, stiffness: 140 } });
+  const tags = items.length ? items.map((i) => i.title).slice(0, 3) : ['Fokus', 'Teruji', 'Rapi'];
 
   return (
     <CleanCardShell badge={badge} rightLabel="Ilustrasi">
@@ -313,9 +345,9 @@ const HeroVisualCard: React.FC<{
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <BeautyIcon type={iconType} primaryColor="#0F766E" accentColor="#F59E0B" size={40} />
+            <LucideIconResolver name={icon} color="#0F766E" size={34} />
             <span style={{ fontFamily: SANS, fontSize: 24, fontWeight: 800, color: '#0F172A' }}>
-              Highlight
+              Poin Utama
             </span>
           </div>
           <div
@@ -331,8 +363,8 @@ const HeroVisualCard: React.FC<{
           >
             {headline}
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            {['Cepat', 'Rapi', 'Teruji'].map((tag, i) => (
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {tags.map((tag, i) => (
               <span
                 key={i}
                 style={{
@@ -356,77 +388,70 @@ const HeroVisualCard: React.FC<{
   );
 };
 
-/** Card 1: 3-Column Staggered Feature Grid */
 const StaggeredGridCard: React.FC<{
   badge: string;
   visualUrl?: string;
-  iconType: ReturnType<typeof resolveIconCategory>;
+  icon?: string;
   subtext: string;
-}> = ({ badge, visualUrl, iconType, subtext }) => {
+  items?: CleanUiItem[];
+  sceneFrames: number;
+}> = ({ badge, visualUrl, icon, subtext, items = [], sceneFrames }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const words = String(subtext || '').split(/\s+/).filter(Boolean);
-  const tiles = [
-    { title: 'Fokus', desc: words.slice(0, 3).join(' ') || 'Visual bersih', icon: iconType },
-    { title: 'Manfaat', desc: words.slice(3, 6).join(' ') || 'Hasil nyata', icon: 'facial' as const },
-    { title: 'Pilihan', desc: words.slice(6, 9).join(' ') || 'Aman harian', icon: 'commerce' as const },
-  ];
+  const tiles: CleanUiItem[] =
+    items.length >= 2
+      ? items.slice(0, 3)
+      : [
+          { title: 'Fokus', desc: words.slice(0, 3).join(' ') || 'Visual bersih', icon: icon || 'sparkles' },
+          { title: 'Manfaat', desc: words.slice(3, 6).join(' ') || 'Hasil nyata', icon: 'droplets' },
+          { title: 'Pilihan', desc: words.slice(6, 9).join(' ') || 'Aman harian', icon: 'shield-check' },
+        ];
 
   return (
     <CleanCardShell badge={badge} rightLabel="Ilustrasi">
       {visualUrl ? (
-        <div
-          style={{
-            width: '100%',
-            height: 220,
-            borderRadius: 18,
-            overflow: 'hidden',
-            border: '1px solid #E2E8F0',
-          }}
-        >
+        <div style={{ width: '100%', height: 220, borderRadius: 18, overflow: 'hidden', border: '1px solid #E2E8F0' }}>
           <Img src={visualUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
       ) : null}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${tiles.length}, 1fr)`, gap: 16 }}>
         {tiles.map((tile, i) => {
+          const appearAt = Math.round((i * 0.25 + 0.08) * sceneFrames);
           const tileEnter = spring({
-            frame: frame - (8 + i * 10),
+            frame: frame - appearAt,
             fps,
-            config: { damping: 20, stiffness: 150 },
+            config: { damping: 18, stiffness: 150 },
           });
           return (
-            <div
-              key={i}
-              style={{
-                backgroundColor: '#F8FAFC',
-                border: '1px solid #E2E8F0',
-                borderRadius: 20,
-                padding: '22px 16px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 10,
-                opacity: tileEnter,
-                transform: `translateY(${(1 - tileEnter) * 18}px)`,
-              }}
-            >
-              <BeautyIcon type={tile.icon} primaryColor="#0F766E" accentColor="#334155" size={44} />
-              <span style={{ fontFamily: SANS, fontSize: 22, fontWeight: 800, color: '#0F172A' }}>
-                {tile.title}
-              </span>
-              <span
+            <React.Fragment key={i}>
+              <Sequence from={appearAt} durationInFrames={12} layout="none">
+                <Audio src={staticFile('audio/sfx/pop.mp3')} volume={0.22} />
+              </Sequence>
+              <div
                 style={{
-                  fontFamily: SANS,
-                  fontSize: 17,
-                  color: '#64748B',
-                  textAlign: 'center',
-                  lineHeight: 1.3,
+                  backgroundColor: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: 20,
+                  padding: '22px 16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 10,
+                  opacity: tileEnter,
+                  transform: `translateY(${(1 - tileEnter) * 20}px)`,
                 }}
               >
-                {tile.desc}
-              </span>
-            </div>
+                <LucideIconResolver name={tile.icon || icon} color="#0F766E" size={40} />
+                <span style={{ fontFamily: SANS, fontSize: 22, fontWeight: 800, color: '#0F172A', textAlign: 'center' }}>
+                  {tile.title}
+                </span>
+                <span style={{ fontFamily: SANS, fontSize: 17, color: '#64748B', textAlign: 'center', lineHeight: 1.3 }}>
+                  {tile.desc}
+                </span>
+              </div>
+            </React.Fragment>
           );
         })}
       </div>
@@ -434,42 +459,45 @@ const StaggeredGridCard: React.FC<{
   );
 };
 
-/** Card 2: Horizontal Flow Diagram + Sub-Pills */
 const FlowDiagramCard: React.FC<{
   badge: string;
   visualUrl?: string;
-  iconType: ReturnType<typeof resolveIconCategory>;
-}> = ({ badge, visualUrl, iconType }) => {
+  icon?: string;
+  items?: CleanUiItem[];
+  sceneFrames: number;
+}> = ({ badge, visualUrl, icon, items = [], sceneFrames }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const steps = ['Masalah', 'Formula', 'Hasil'];
-  const pills = ['Ringkas', 'Terarah', 'Sesuai'];
+  const steps: CleanUiItem[] =
+    items.length >= 2
+      ? items.slice(0, 3)
+      : [
+          { title: 'Masalah', desc: 'Identifikasi', icon: 'alert-circle' },
+          { title: 'Solusi', desc: 'Tepat sasaran', icon: icon || 'sparkles' },
+          { title: 'Hasil', desc: 'Lebih optimal', icon: 'check-circle' },
+        ];
 
   return (
     <CleanCardShell badge={badge} rightLabel="Alur kerja">
       {visualUrl ? (
-        <div
-          style={{
-            width: '100%',
-            height: 210,
-            borderRadius: 18,
-            overflow: 'hidden',
-            border: '1px solid #E2E8F0',
-          }}
-        >
+        <div style={{ width: '100%', height: 210, borderRadius: 18, overflow: 'hidden', border: '1px solid #E2E8F0' }}>
           <Img src={visualUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
       ) : null}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         {steps.map((st, i) => {
+          const appearAt = Math.round((i * 0.25 + 0.08) * sceneFrames);
           const sEnter = spring({
-            frame: frame - (6 + i * 10),
+            frame: frame - appearAt,
             fps,
-            config: { damping: 20, stiffness: 150 },
+            config: { damping: 18, stiffness: 150 },
           });
           return (
             <React.Fragment key={i}>
+              <Sequence from={appearAt} durationInFrames={12} layout="none">
+                <Audio src={staticFile('audio/sfx/pop.mp3')} volume={0.22} />
+              </Sequence>
               <div
                 style={{
                   flex: 1,
@@ -485,28 +513,21 @@ const FlowDiagramCard: React.FC<{
                   transform: `scale(${0.92 + sEnter * 0.08})`,
                 }}
               >
-                <BeautyIcon
-                  type={i === 0 ? 'skincare' : i === 1 ? iconType : 'social'}
-                  primaryColor="#0F766E"
-                  accentColor="#F59E0B"
-                  size={38}
-                />
-                <span style={{ fontFamily: SANS, fontSize: 21, fontWeight: 800, color: '#0F172A' }}>
-                  {st}
+                <LucideIconResolver name={st.icon || icon} color="#0F766E" size={36} />
+                <span style={{ fontFamily: SANS, fontSize: 21, fontWeight: 800, color: '#0F172A', textAlign: 'center' }}>
+                  {st.title}
                 </span>
               </div>
               {i < steps.length - 1 ? (
-                <span style={{ fontFamily: SANS, fontSize: 28, fontWeight: 800, color: '#94A3B8' }}>
-                  →
-                </span>
+                <span style={{ fontFamily: SANS, fontSize: 28, fontWeight: 800, color: '#94A3B8' }}>→</span>
               ) : null}
             </React.Fragment>
           );
         })}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        {pills.map((p, i) => (
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${steps.length}, 1fr)`, gap: 12 }}>
+        {steps.map((st, i) => (
           <div
             key={i}
             style={{
@@ -516,12 +537,12 @@ const FlowDiagramCard: React.FC<{
               padding: '10px 12px',
               textAlign: 'center',
               fontFamily: SANS,
-              fontSize: 18,
+              fontSize: 17,
               fontWeight: 700,
               color: '#0F766E',
             }}
           >
-            ✓ {p}
+            ✓ {st.desc}
           </div>
         ))}
       </div>
@@ -529,7 +550,74 @@ const FlowDiagramCard: React.FC<{
   );
 };
 
-/** Card 3 (Final): Typewriter CTA + Animated Bookmark Icon */
+const ErrorFixCard: React.FC<{
+  badge: string;
+  headline: string;
+  items?: CleanUiItem[];
+  sceneFrames: number;
+}> = ({ badge, headline, items = [], sceneFrames }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const step1Enter = spring({ frame: frame - Math.round(sceneFrames * 0.2), fps, config: { damping: 18, stiffness: 150 } });
+  const step2Enter = spring({ frame: frame - Math.round(sceneFrames * 0.48), fps, config: { damping: 18, stiffness: 150 } });
+  const issueText = items[0]?.desc || headline;
+  const fixText = items[1]?.desc || 'Solusi tepat & teruji';
+
+  return (
+    <CleanCardShell badge={badge} rightLabel="Contoh">
+      <div
+        style={{
+          backgroundColor: '#FFF7ED',
+          border: '1.5px solid #FED7AA',
+          borderRadius: 16,
+          padding: '18px 22px',
+          fontFamily: MONO,
+          fontSize: 22,
+          color: '#9A3412',
+        }}
+      >
+        ⚠ {issueText}
+      </div>
+      <div
+        style={{
+          backgroundColor: '#F8FAFC',
+          border: '1px solid #E2E8F0',
+          borderRadius: 16,
+          padding: '16px 22px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+          opacity: step1Enter,
+          transform: `translateY(${(1 - step1Enter) * 14}px)`,
+        }}
+      >
+        <LucideIconResolver name="alert-circle" color="#0F766E" size={30} />
+        <span style={{ fontFamily: SANS, fontSize: 22, fontWeight: 700, color: '#1E293B' }}>
+          {items[0]?.title || 'Kenali penyebabnya'}
+        </span>
+      </div>
+      <div
+        style={{
+          backgroundColor: 'rgba(20, 184, 166, 0.10)',
+          border: '1.5px solid #0F766E',
+          borderRadius: 16,
+          padding: '16px 22px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+          opacity: step2Enter,
+          transform: `translateY(${(1 - step2Enter) * 14}px)`,
+        }}
+      >
+        <LucideIconResolver name="check-circle" color="#0F766E" size={30} />
+        <span style={{ fontFamily: SANS, fontSize: 22, fontWeight: 800, color: '#0F766E' }}>
+          {fixText}
+        </span>
+      </div>
+    </CleanCardShell>
+  );
+};
+
 const TypewriterBookmarkOutro: React.FC<{ headline: string; subtext: string; visualUrl?: string }> = ({
   headline,
   subtext,
@@ -540,57 +628,23 @@ const TypewriterBookmarkOutro: React.FC<{ headline: string; subtext: string; vis
   const visibleChars = Math.min(fullText.length, Math.floor(frame * 1.4));
   const typed = fullText.slice(0, visibleChars);
   const cursorVisible = Math.floor(frame / 10) % 2 === 0;
-  const bookmarkFill = interpolate(frame, [20, 44], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+  const bookmarkFill = interpolate(frame, [20, 44], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 40,
-        padding: '0 64px',
-      }}
-    >
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 40, padding: '0 64px' }}>
       {visualUrl ? (
-        <div
-          style={{
-            width: 240,
-            height: 240,
-            borderRadius: 28,
-            overflow: 'hidden',
-            border: '2px solid #E2E8F0',
-            boxShadow: '0 20px 44px rgba(15, 23, 42, 0.08)',
-          }}
-        >
+        <div style={{ width: 240, height: 240, borderRadius: 28, overflow: 'hidden', border: '2px solid #E2E8F0', boxShadow: '0 20px 44px rgba(15, 23, 42, 0.08)' }}>
           <Img src={visualUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
       ) : null}
-
-      <div
-        style={{
-          fontFamily: SANS,
-          fontSize: 48,
-          fontWeight: 800,
-          color: '#1E293B',
-          textAlign: 'center',
-          lineHeight: 1.35,
-          minHeight: 180,
-        }}
-      >
+      <div style={{ fontFamily: SANS, fontSize: 46, fontWeight: 800, color: '#1E293B', textAlign: 'center', lineHeight: 1.35, minHeight: 170 }}>
         {typed}
         <span style={{ color: '#0F766E', opacity: cursorVisible ? 1 : 0 }}>|</span>
       </div>
-
-      {/* Animated Bookmark Save Icon */}
       <svg width={88} height={88} viewBox="0 0 64 64">
         <path
           d="M18 10 H46 V54 L32 43 L18 54 Z"
-          fill={`rgba(15, 118, 110, ${bookmarkFill * 0.2})`}
+          fill={`rgba(15, 118, 110, ${bookmarkFill * 0.22})`}
           stroke="#0F766E"
           strokeWidth="4"
           strokeLinejoin="round"
@@ -606,93 +660,132 @@ export const CleanUiMotion: React.FC<CleanUiMotionProps> = ({
   bgImageUrl,
   productImageUrl,
   scenes = [],
+  wordTimings = [],
 }) => {
-  const { durationInFrames } = useVideoConfig();
+  const { fps, durationInFrames } = useVideoConfig();
   const safeScenes = scenes.length
     ? scenes
     : [{ headline: title, subtext: brandName, badge: 'INTRO', durationSec: 5 }];
+
+  const transitionFrames = safeScenes.length > 1 ? 10 : 0;
+  const totalOverlap = transitionFrames * (safeScenes.length - 1);
+  const rawTotal = durationInFrames + totalOverlap;
 
   const weights = safeScenes.map((s) =>
     Math.max(15, `${s.headline || ''} ${s.subtext || ''}`.trim().length)
   );
   const totalWeight = weights.reduce((a, b) => a + b, 0);
-  let cursor = 0;
+
+  let cursorFrames = 0;
 
   return (
     <AbsoluteFill>
       <CleanGridBackdrop brandName={brandName} />
 
-      {safeScenes.map((scene, idx) => {
-        const ratio = weights[idx] / Math.max(1, totalWeight);
-        const sceneFrames =
-          idx === safeScenes.length - 1
-            ? Math.max(24, durationInFrames - cursor)
-            : Math.max(24, Math.round(durationInFrames * ratio));
-        const from = cursor;
-        cursor += sceneFrames;
+      <TransitionSeries>
+        {safeScenes.map((scene, idx) => {
+          const ratio = weights[idx] / Math.max(1, totalWeight);
+          const sceneFrames =
+            idx === safeScenes.length - 1
+              ? Math.max(30, rawTotal - cursorFrames)
+              : Math.max(30, Math.round(rawTotal * ratio));
+          const sceneStartSec = Math.max(0, (cursorFrames - idx * transitionFrames) / Math.max(1, fps));
+          const sceneDurationSec = sceneFrames / Math.max(1, fps);
+          cursorFrames += sceneFrames;
 
-        const visualUrl = scene.imageUrl || productImageUrl || bgImageUrl;
-        const iconType = resolveIconCategory(scene.icon, scene.badge, scene.headline);
-        const category = scene.badge || `POIN ${idx + 1}`;
-        const isLast = idx === safeScenes.length - 1 && safeScenes.length > 1;
+          const visualUrl = scene.imageUrl || productImageUrl || bgImageUrl;
+          const category = scene.category || scene.badge || `POIN ${idx + 1}`;
+          const isLast = idx === safeScenes.length - 1 && safeScenes.length > 1;
+          const layout =
+            scene.cardLayout ||
+            (isLast ? 'typewriter_outro' : idx === 0 ? 'hero_visual' : idx === 1 ? 'grid_3' : 'flow_3');
 
-        return (
-          <React.Fragment key={idx}>
-            <Sequence from={from} durationInFrames={sceneFrames}>
-              <AbsoluteFill
-                style={{
-                  padding: '150px 56px 140px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: isLast ? 'center' : 'space-between',
-                }}
-              >
-                {isLast ? (
-                  <TypewriterBookmarkOutro
-                    headline={scene.headline}
-                    subtext={scene.subtext}
-                    visualUrl={visualUrl}
-                  />
-                ) : (
-                  <>
-                    <TwoToneHeadline category={category} headline={scene.headline} />
-
-                    {idx === 0 && (
-                      <HeroVisualCard
-                        badge={`</> ${category}`}
-                        visualUrl={visualUrl}
-                        headline={scene.headline}
-                        iconType={iconType}
-                      />
-                    )}
-                    {idx === 1 && (
-                      <StaggeredGridCard
-                        badge={category}
-                        visualUrl={visualUrl}
-                        iconType={iconType}
-                        subtext={scene.subtext}
-                      />
-                    )}
-                    {idx >= 2 && (
-                      <FlowDiagramCard
-                        badge={category}
-                        visualUrl={visualUrl}
-                        iconType={iconType}
-                      />
-                    )}
-
-                    <HighlightCaption
+          return (
+            <React.Fragment key={idx}>
+              <TransitionSeries.Sequence durationInFrames={sceneFrames}>
+                <AbsoluteFill
+                  style={{
+                    padding: '150px 56px 140px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: layout === 'typewriter_outro' ? 'center' : 'space-between',
+                  }}
+                >
+                  {layout === 'typewriter_outro' ? (
+                    <TypewriterBookmarkOutro
+                      headline={scene.headline}
                       subtext={scene.subtext}
-                      tone={idx % 2 === 1 ? 'peach' : 'mint'}
+                      visualUrl={visualUrl}
                     />
-                  </>
-                )}
-              </AbsoluteFill>
-            </Sequence>
-          </React.Fragment>
-        );
-      })}
+                  ) : (
+                    <>
+                      <TwoToneHeadline
+                        category={category}
+                        headline={scene.headline}
+                        highlightHeadline={scene.highlightHeadline}
+                      />
+
+                      {layout === 'hero_visual' && (
+                        <HeroVisualCard
+                          badge={`</> ${category}`}
+                          visualUrl={visualUrl}
+                          headline={scene.headline}
+                          icon={scene.icon}
+                          items={scene.items}
+                        />
+                      )}
+                      {layout === 'grid_3' && (
+                        <StaggeredGridCard
+                          badge={category}
+                          visualUrl={visualUrl}
+                          icon={scene.icon}
+                          subtext={scene.subtext}
+                          items={scene.items}
+                          sceneFrames={sceneFrames}
+                        />
+                      )}
+                      {layout === 'error_fix' && (
+                        <ErrorFixCard
+                          badge={category}
+                          headline={scene.headline}
+                          items={scene.items}
+                          sceneFrames={sceneFrames}
+                        />
+                      )}
+                      {(layout === 'flow_3' || !['hero_visual', 'grid_3', 'error_fix'].includes(layout)) && (
+                        <FlowDiagramCard
+                          badge={category}
+                          visualUrl={visualUrl}
+                          icon={scene.icon}
+                          items={scene.items}
+                          sceneFrames={sceneFrames}
+                        />
+                      )}
+
+                      <HighlightCaption
+                        subtext={scene.subtext}
+                        highlightWords={scene.highlightWords}
+                        tone={idx % 2 === 1 ? 'peach' : 'mint'}
+                        sceneStartSec={sceneStartSec}
+                        sceneDurationSec={sceneDurationSec}
+                        wordTimings={wordTimings}
+                      />
+                    </>
+                  )}
+                </AbsoluteFill>
+              </TransitionSeries.Sequence>
+
+              {idx < safeScenes.length - 1 ? (
+                <TransitionSeries.Transition
+                  presentation={idx % 2 === 0 ? fade() : slide({ direction: 'from-bottom' })}
+                  timing={linearTiming({ durationInFrames: transitionFrames })}
+                />
+              ) : null}
+            </React.Fragment>
+          );
+        })}
+      </TransitionSeries>
     </AbsoluteFill>
   );
 };

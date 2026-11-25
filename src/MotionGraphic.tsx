@@ -29,11 +29,24 @@ export interface SceneItem {
   headline: string;
   subtext: string;
   badge?: string;
+  category?: string;
+  highlightHeadline?: string;
+  highlightWords?: string[];
+  cardLayout?: string;
+  items?: Array<{ title: string; desc: string; icon?: string }>;
+  expression?: string;
+  highlight?: string;
   durationSec: number;
   showProduct?: boolean;
   imageUrl?: string;
   icon?: string;
   motion?: 'zoomIn' | 'panRight' | 'zoomOut' | 'panLeft';
+}
+
+export interface WordTiming {
+  text: string;
+  startSec: number;
+  endSec: number;
 }
 
 export interface BrandingConfig {
@@ -56,6 +69,7 @@ export interface MotionGraphicProps {
   fps: number;
   durationInFrames: number;
   scenes: SceneItem[];
+  wordTimings?: WordTiming[];
 }
 
 function splitToWords(text: string, maxItems = 4): string[] {
@@ -630,6 +644,7 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
   fps = 24,
   durationInFrames,
   scenes = [],
+  wordTimings = [],
 }) => {
   const frame = useCurrentFrame();
   const outroLiftStart = Math.max(0, durationInFrames - fps * 4);
@@ -660,6 +675,7 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
           bgImageUrl={bgImageUrl}
           productImageUrl={productImageUrl}
           scenes={safeScenes}
+          wordTimings={wordTimings}
         />
         {bgmUrl ? <Audio src={bgmUrl} volume={bgmVolume} loop /> : null}
         {audioUrl ? <Audio src={audioUrl} /> : null}
@@ -678,6 +694,7 @@ export const MotionGraphic: React.FC<MotionGraphicProps> = ({
           bgImageUrl={bgImageUrl}
           productImageUrl={productImageUrl}
           scenes={safeScenes}
+          wordTimings={wordTimings}
         />
         {bgmUrl ? <Audio src={bgmUrl} volume={bgmVolume} loop /> : null}
         {audioUrl ? <Audio src={audioUrl} /> : null}
