@@ -269,12 +269,12 @@ const HighlightCaption: React.FC<{
     <div
       style={{
         fontFamily: SANS,
-        fontSize: 33,
-        fontWeight: 600,
-        color: '#334155',
+        fontSize: 42,
+        fontWeight: 700,
+        color: '#1E293B',
         textAlign: 'center',
-        lineHeight: 1.5,
-        padding: '0 44px',
+        lineHeight: 1.4,
+        padding: '0 24px',
         opacity: enter,
         transform: `translateY(${(1 - enter) * 14}px)`,
       }}
@@ -726,6 +726,15 @@ export const CleanUiMotion: React.FC<CleanUiMotionProps> = ({
                         highlightHeadline={scene.highlightHeadline}
                       />
 
+                      <HighlightCaption
+                        subtext={scene.subtext}
+                        highlightWords={scene.highlightWords}
+                        tone={idx % 2 === 1 ? 'peach' : 'mint'}
+                        sceneStartSec={sceneStartSec}
+                        sceneDurationSec={sceneDurationSec}
+                        wordTimings={wordTimings}
+                      />
+
                       {layout === 'hero_visual' && (
                         <HeroVisualCard
                           badge={`</> ${category}`}
@@ -762,15 +771,6 @@ export const CleanUiMotion: React.FC<CleanUiMotionProps> = ({
                           sceneFrames={sceneFrames}
                         />
                       )}
-
-                      <HighlightCaption
-                        subtext={scene.subtext}
-                        highlightWords={scene.highlightWords}
-                        tone={idx % 2 === 1 ? 'peach' : 'mint'}
-                        sceneStartSec={sceneStartSec}
-                        sceneDurationSec={sceneDurationSec}
-                        wordTimings={wordTimings}
-                      />
                     </>
                   )}
                 </AbsoluteFill>

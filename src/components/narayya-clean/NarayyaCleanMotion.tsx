@@ -272,7 +272,7 @@ const NarayyaCaption: React.FC<{
   const hlSet = new Set(highlightWords.map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, '')));
 
   return (
-    <div style={{ fontFamily: NARAYYA_FONTS.body, fontSize: 32, fontWeight: 500, color: NARAYYA_COLORS.deepPlum, textAlign: 'center', lineHeight: 1.48, padding: '0 36px', opacity: enter }}>
+    <div style={{ fontFamily: NARAYYA_FONTS.body, fontSize: 42, fontWeight: 700, color: NARAYYA_COLORS.deepPlum, textAlign: 'center', lineHeight: 1.4, padding: '0 24px', opacity: enter }}>
       {words.map((w, i) => {
         const cleanW = w.toLowerCase().replace(/[^a-z0-9]/g, '');
         const isActive = i === activeIdx || (hlSet.has(cleanW) && Math.abs(i - activeIdx) <= 2);
@@ -361,16 +361,7 @@ export const NarayyaCleanMotion: React.FC<NarayyaCleanMotionProps> = ({
                   }}
                 >
                   {isLast ? (
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 28 }}>
-                      <NarayyaLogo size={92} showWordmark showTagline />
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 26 }}>
-                        <NayaMascot expression="senang" width={210} />
-                        {visualUrl ? (
-                          <div style={{ width: 230, height: 260, borderRadius: 28, overflow: 'hidden', border: `3px solid ${NARAYYA_COLORS.champagneGold}`, boxShadow: '0 20px 44px rgba(58, 30, 44, 0.12)' }}>
-                            <Img src={visualUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          </div>
-                        ) : null}
-                      </div>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 26 }}>
                       <NarayyaHeadline
                         category={category}
                         headline={scene.headline}
@@ -383,6 +374,15 @@ export const NarayyaCleanMotion: React.FC<NarayyaCleanMotionProps> = ({
                         sceneDurationSec={sceneDurationSec}
                         wordTimings={wordTimings}
                       />
+                      <NarayyaLogo size={88} showWordmark showTagline />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 26 }}>
+                        <NayaMascot expression="senang" width={200} />
+                        {visualUrl ? (
+                          <div style={{ width: 220, height: 245, borderRadius: 28, overflow: 'hidden', border: `3px solid ${NARAYYA_COLORS.champagneGold}`, boxShadow: '0 20px 44px rgba(58, 30, 44, 0.12)' }}>
+                            <Img src={visualUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   ) : (
                     <>
@@ -390,6 +390,14 @@ export const NarayyaCleanMotion: React.FC<NarayyaCleanMotionProps> = ({
                         category={category}
                         headline={scene.headline}
                         highlight={scene.highlight || scene.highlightHeadline}
+                      />
+
+                      <NarayyaCaption
+                        subtext={scene.subtext}
+                        highlightWords={scene.highlightWords}
+                        sceneStartSec={sceneStartSec}
+                        sceneDurationSec={sceneDurationSec}
+                        wordTimings={wordTimings}
                       />
 
                       <NarayyaCardShell badge={category}>
@@ -432,14 +440,6 @@ export const NarayyaCleanMotion: React.FC<NarayyaCleanMotionProps> = ({
                           </div>
                         </div>
                       </NarayyaCardShell>
-
-                      <NarayyaCaption
-                        subtext={scene.subtext}
-                        highlightWords={scene.highlightWords}
-                        sceneStartSec={sceneStartSec}
-                        sceneDurationSec={sceneDurationSec}
-                        wordTimings={wordTimings}
-                      />
                     </>
                   )}
                 </AbsoluteFill>
