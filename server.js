@@ -21,6 +21,43 @@ fs.mkdirSync(WORK_DIR, { recursive: true });
 
 app.use('/outputs', express.static(OUTPUT_DIR));
 
+function cleanupDirectory(dirPath, maxAgeMs, preserveNames = new Set()) {
+  let deletedFiles = 0;
+  let freedBytes = 0;
+  if (!fs.existsSync(dirPath)) return { deletedFiles, freedBytes };
+  const now = Date.now();
+  for (const entry of fs.readdirSync(dirPath)) {
+    if (preserveNames.has(entry)) continue;
+    const fullPath = path.join(dirPath, entry);
+    try {
+      const stat = fs.statSync(fullPath);
+      if (!stat.isFile()) continue;
+      if (maxAgeMs === 0 || now - stat.mtimeMs >= maxAgeMs) {
+        freedBytes += stat.size;
+        fs.unlinkSync(fullPath);
+        deletedFiles += 1;
+      }
+    } catch (_e) {}
+  }
+  return { deletedFiles, freedBytes };
+}
+
+function runCleanup(maxAgeMs = 15 * 60 * 1000) {
+  const preserveAssets = new Set(['lofi_ambient.mp3']);
+  const r1 = cleanupDirectory(OUTPUT_DIR, maxAgeMs);
+  const r2 = cleanupDirectory(ASSETS_DIR, maxAgeMs, preserveAssets);
+  const r3 = cleanupDirectory(WORK_DIR, maxAgeMs);
+  const deletedFiles = r1.deletedFiles + r2.deletedFiles + r3.deletedFiles;
+  const freedBytes = r1.freedBytes + r2.freedBytes + r3.freedBytes;
+  if (deletedFiles > 0) {
+    console.log(`[cleanup] Deleted ${deletedFiles} files (${(freedBytes / 1024 / 1024).toFixed(2)} MB freed)`);
+  }
+  return { ok: true, deletedFiles, freedBytes, freedMB: Number((freedBytes / 1024 / 1024).toFixed(2)) };
+}
+
+runCleanup(15 * 60 * 1000);
+setInterval(() => runCleanup(15 * 60 * 1000), 15 * 60 * 1000).unref();
+
 let bundleLocationPromise = null;
 function getBundleLocation() {
   if (!bundleLocationPromise) {
@@ -171,6 +208,12 @@ async function generateEdgeTtsAudio(jobId, text) {
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'remotion-renderer' });
+});
+
+app.all('/cleanup', (req, res) => {
+  const maxAgeMin = Number(req.query.maxAgeMin ?? req.body?.maxAgeMin ?? 0);
+  const result = runCleanup(Math.max(0, maxAgeMin) * 60 * 1000);
+  res.json(result);
 });
 
 app.get('/templates', (_req, res) => {
@@ -328,6 +371,7 @@ app.post('/render', async (req, res) => {
     fs.writeFileSync(path.join(OUTPUT_DIR, `${jobId}.json`), JSON.stringify(meta, null, 2));
 
     res.json(meta);
+    runCleanup(15 * 60 * 1000);
   } catch (err) {
     console.error('Render error:', err);
     res.status(500).json({ ok: false, error: err.message });
@@ -513,6 +557,7 @@ app.post('/render-ffmpeg', async (req, res) => {
     console.log(`[${jobId}] FFmpeg render complete in ${renderTimeSec}s -> ${outMp4}`);
 
     res.json(meta);
+    runCleanup(15 * 60 * 1000);
   } catch (err) {
     console.error('FFmpeg render error:', err);
     res.status(500).json({ ok: false, error: err.message });
